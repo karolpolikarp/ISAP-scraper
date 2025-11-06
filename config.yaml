@@ -1,0 +1,40 @@
+# Konfiguracja scrapera ISAP
+
+# Podstawowe ustawienia
+base_url: "https://isap.sejm.gov.pl"
+api_url: "https://api.sejm.gov.pl"
+
+# Typy aktów prawnych do monitorowania
+act_types:
+  - WDU  # Dziennik Ustaw
+  - WMP  # Monitor Polski
+  - WDU_UE  # Dziennik Ustaw - prawo UE
+
+# Zakres lat do pobrania (null = wszystkie dostępne)
+year_range:
+  start: 2020  # Rok początkowy
+  end: null    # null = do bieżącego roku
+
+# Katalogi
+data_dir: "data"
+cache_dir: "data/cache"
+logs_dir: "logs"
+db_file: "data/acts_database.json"
+
+# Monitorowanie
+monitoring:
+  enabled: true
+  interval_hours: 24  # Sprawdzaj co 24 godziny
+  notification_enabled: false  # E-mail notifications (wymaga konfiguracji SMTP)
+
+# Limity i opóźnienia
+rate_limiting:
+  requests_per_second: 2
+  retry_attempts: 3
+  retry_delay: 5  # sekundy
+
+# Opcje pobierania
+download:
+  save_html: true
+  save_pdf: false  # Czy pobierać pliki PDF aktów
+  save_metadata: true
