@@ -4,7 +4,7 @@ Automatyczny scraper do pobierania i monitorowania aktów prawnych z Internetowe
 
 ## Funkcjonalności
 
-✅ **Pobieranie aktów prawnych**
+ **Pobieranie aktów prawnych**
 - Automatyczne pobieranie wszystkich aktualnych aktów prawnych
 - Obsługa różnych typów aktów (Dziennik Ustaw, Monitor Polski)
 - Konfigurowalny zakres lat
