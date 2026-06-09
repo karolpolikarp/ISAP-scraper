@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 ISAP Scraper Contributors
+Copyright (c) 2025-2026 Karol Polikarp Wilczyński
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,31 @@ SOFTWARE.
 
 ---
 
-DISCLAIMER:
-This software is intended for educational and research purposes only.
-Users must comply with the terms of service of the ISAP (Internetowy System
-Aktów Prawnych) website. The authors are not responsible for any misuse of
-this software.
+SCOPE OF THIS LICENSE / ZAKRES LICENCJI
+
+The MIT license above applies to the SOURCE CODE of this project only.
+
+It does NOT apply to the legal acts and their metadata retrieved through the
+Sejm RP ELI API (https://api.sejm.gov.pl/eli). Under Article 4 of the Polish
+Act on Copyright and Related Rights (ustawa o prawie autorskim i prawach
+pokrewnych), normative acts and their official drafts are not subject to
+copyright and belong to the public domain.
+
+Licencja MIT powyżej obejmuje wyłącznie KOD ŹRÓDŁOWY tego projektu. Nie dotyczy
+ona aktów prawnych ani ich metadanych pobieranych z API ELI Sejmu RP — zgodnie
+z art. 4 ustawy o prawie autorskim i prawach pokrewnych akty normatywne i ich
+urzędowe projekty nie stanowią przedmiotu prawa autorskiego.
+
+---
+
+DISCLAIMER / ZASTRZEŻENIE
+
+This software is provided for educational and research purposes. It uses the
+official public API of the Sejm of the Republic of Poland; users should respect
+the terms of service of that API. The authors are not responsible for any
+misuse of this software.
+
+Oprogramowanie udostępniane jest w celach edukacyjnych i badawczych. Korzysta
+z oficjalnego, publicznego API Sejmu RP — należy przestrzegać regulaminu
+korzystania z tego API. Autorzy nie ponoszą odpowiedzialności za niewłaściwe
+wykorzystanie oprogramowania.
