@@ -4,11 +4,6 @@ Narzędzie do pobierania i monitorowania metadanych aktów prawnych z
 **oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Internetowego
 Systemu Aktów Prawnych (ISAP).
 
-> **Uwaga o architekturze:** narzędzie korzysta z oficjalnego, publicznego API
-> JSON, a **nie** ze scrapowania strony `isap.sejm.gov.pl` (która jest chroniona
-> przez WAF i nie nadaje się do automatycznego parsowania HTML). Dzięki temu jest
-> szybkie i stabilne — pobranie metadanych całego rocznika to jedno zapytanie.
-
 ## Funkcjonalności
 
 ✅ **Pobieranie aktów prawnych**
