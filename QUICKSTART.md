@@ -1,5 +1,7 @@
 # 🚀 Szybki Start - ISAP Scraper
 
+Klient oficjalnego API ELI Sejmu RP (`https://api.sejm.gov.pl/eli`).
+
 ## Instalacja w 3 krokach
 
 ### 1. Zainstaluj zależności
@@ -10,16 +12,16 @@ pip install -r requirements.txt
 
 ### 2. Opcjonalnie: Dostosuj konfigurację
 
-Edytuj `config.yaml` jeśli chcesz zmienić zakres lat lub typy aktów:
+Edytuj `config.yaml`, jeśli chcesz zmienić zakres lat lub wydawców:
 
 ```yaml
 year_range:
-  start: 2020  # Zmień na rok, od którego chcesz pobierać
+  start: 2020  # Rok, od którego pobierać
   end: null    # null = do teraz
 
-act_types:
-  - WDU  # Dziennik Ustaw
-  - WMP  # Monitor Polski
+publishers:
+  - DU  # Dziennik Ustaw
+  - MP  # Monitor Polski
 ```
 
 ### 3. Uruchom scraper
@@ -37,7 +39,7 @@ python isap_scraper.py --mode scrape-all
 python isap_scraper.py --mode scrape-all
 ```
 
-⏱️ Pierwszy raz: 2-4 godziny
+⏱️ Kilkanaście sekund (jedno zapytanie API na rocznik)
 💾 Zapisuje do: `data/acts_database.json`
 
 ### Sprawdzenie nowych aktów
@@ -46,17 +48,16 @@ python isap_scraper.py --mode scrape-all
 python isap_scraper.py --mode check-new --days 7
 ```
 
-⏱️ Czas: 2-5 minut
-✅ Znajdzie akty z ostatnich 7 dni
+⏱️ Kilka sekund
+✅ Znajdzie akty ogłoszone w ostatnich 7 dniach
 
-### Znalezienie zastąpionych aktów
+### Znalezienie aktów, które utraciły moc
 
 ```bash
 python isap_scraper.py --mode find-replaced
 ```
 
-⏱️ Czas: 10-30 minut
-⚠️ Wykryje akty uchylone/zastąpione
+⚠️ Wykryje akty uchylone/wygasłe (na podstawie pola `inForce` z API)
 
 ### Eksport do CSV
 
@@ -72,7 +73,7 @@ python isap_scraper.py --mode export --output moje_akty.csv
 python isap_scraper.py --mode stats
 ```
 
-📈 Pokaże statystyki bazy danych
+📈 Pokaże podział według wydawcy, statusu i lat
 
 ## Automatyczne monitorowanie
 
@@ -92,10 +93,8 @@ python monitor.py --mode continuous
 
 ### Cron (sprawdzaj codziennie o 6:00)
 
-Dodaj do crontab (`crontab -e`):
-
 ```cron
-0 6 * * * cd /ścieżka/do/isapscrap && python3 monitor.py --mode once
+0 6 * * * cd /ścieżka/do/ISAP-scraper && python3 monitor.py --mode once
 ```
 
 ## Użycie w kodzie Python
@@ -103,12 +102,11 @@ Dodaj do crontab (`crontab -e`):
 ```python
 from isap_scraper import ISAPScraper
 
-# Utwórz scraper
+# Utwórz klienta
 scraper = ISAPScraper('config.yaml')
 
 # Sprawdź nowe akty
 new_acts = scraper.check_for_new_acts(days_back=7)
-
 print(f"Znaleziono {len(new_acts)} nowych aktów!")
 
 # Eksportuj
@@ -117,7 +115,7 @@ scraper.export_to_csv('akty.csv')
 
 ## Przykłady
 
-Zobacz katalog `examples/` dla bardziej zaawansowanych przykładów:
+Zobacz katalog `examples/`:
 
 - `example_basic_usage.py` - Podstawowe użycie
 - `example_monitoring.py` - Monitorowanie z powiadomieniami
@@ -125,18 +123,21 @@ Zobacz katalog `examples/` dla bardziej zaawansowanych przykładów:
 
 ## Struktura danych
 
-Dane są zapisywane w `data/acts_database.json`:
+Dane zapisywane są w `data/acts_database.json`:
 
 ```json
 {
   "acts": {
-    "WDU_2025_123456": {
-      "id": "123456",
-      "type": "WDU",
-      "year": 2025,
-      "title": "Ustawa o...",
-      "status": "active",
-      "url": "https://..."
+    "WDU20240001984": {
+      "address": "WDU20240001984",
+      "publisher": "DU",
+      "type": "Rozporządzenie",
+      "year": 2024,
+      "title": "Rozporządzenie Rady Ministrów ...",
+      "displayAddress": "Dz.U. 2024 poz. 1984",
+      "status": "obowiązujący",
+      "inForce": "IN_FORCE",
+      "url": "https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU20240001984"
     }
   }
 }
@@ -144,20 +145,20 @@ Dane są zapisywane w `data/acts_database.json`:
 
 ## Rozwiązywanie problemów
 
-### Błąd "Access denied"
+### Błędy sieciowe / API niedostępne
 
-Zwiększ opóźnienia w `config.yaml`:
+Zmniejsz tempo zapytań w `config.yaml`:
 
 ```yaml
 rate_limiting:
-  requests_per_second: 1  # było: 2
+  requests_per_second: 2
 ```
 
 ### Scraper nic nie znajduje
 
 1. Sprawdź logi w `logs/`
-2. Upewnij się, że ISAP jest dostępny
-3. Sprawdź konfigurację `config.yaml`
+2. Upewnij się, że API jest dostępne (`https://api.sejm.gov.pl/eli/acts`)
+3. Sprawdź konfigurację `config.yaml` (wydawcy `DU`/`MP`, zakres lat)
 
 ### Brakuje katalogu
 
@@ -169,6 +170,6 @@ Katalogi tworzone automatycznie przy pierwszym uruchomieniu:
 
 📖 Pełna dokumentacja: [README.md](README.md)
 
-🐛 Problemy? Sprawdź logi w `logs/`
+📚 Specyfikacja API: https://api.sejm.gov.pl/eli.html
 
-💡 Pytania? Przeczytaj FAQ w README.md
+🐛 Problemy? Sprawdź logi w `logs/`

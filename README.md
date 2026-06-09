@@ -1,22 +1,29 @@
-# ISAP Scraper - Scraper Aktów Prawnych Sejmu RP
+# ISAP Scraper - Klient API Aktów Prawnych Sejmu RP
 
-Automatyczny scraper do pobierania i monitorowania aktów prawnych z Internetowego Systemu Aktów Prawnych (ISAP) Sejmu Rzeczypospolitej Polskiej.
+Narzędzie do pobierania i monitorowania metadanych aktów prawnych z
+**oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Internetowego
+Systemu Aktów Prawnych (ISAP).
+
+> **Uwaga o architekturze:** narzędzie korzysta z oficjalnego, publicznego API
+> JSON, a **nie** ze scrapowania strony `isap.sejm.gov.pl` (która jest chroniona
+> przez WAF i nie nadaje się do automatycznego parsowania HTML). Dzięki temu jest
+> szybkie i stabilne — pobranie metadanych całego rocznika to jedno zapytanie.
 
 ## Funkcjonalności
 
- **Pobieranie aktów prawnych**
-- Automatyczne pobieranie wszystkich aktualnych aktów prawnych
-- Obsługa różnych typów aktów (Dziennik Ustaw, Monitor Polski)
+✅ **Pobieranie aktów prawnych**
+- Pobieranie metadanych aktów z Dziennika Ustaw (DU) i Monitora Polskiego (MP)
 - Konfigurowalny zakres lat
+- Bogate metadane: tytuł, status, daty, typ aktu, ELI, adres publikacyjny
 
 ✅ **Monitorowanie zmian**
-- Codzienne sprawdzanie nowych aktów prawnych
-- Wykrywanie aktów zastąpionych/uchylonych
-- Automatyczne powiadomienia
+- Wykrywanie nowych aktów (po dacie ogłoszenia)
+- Wykrywanie aktów, które utraciły moc obowiązującą (pole `inForce` z API)
+- Automatyczne powiadomienia (do konfiguracji)
 
 ✅ **Eksport danych**
 - Eksport do CSV
-- Zapisywanie w bazie JSON
+- Lokalna baza JSON
 - Pełne logi operacji
 
 ## Instalacja
@@ -33,13 +40,16 @@ pip install -r requirements.txt
 
 ## Konfiguracja
 
-Edytuj plik `config.yaml` aby dostosować scraper do swoich potrzeb:
+Edytuj plik `config.yaml`, aby dostosować narzędzie do swoich potrzeb:
 
 ```yaml
-# Typy aktów do pobierania
-act_types:
-  - WDU  # Dziennik Ustaw
-  - WMP  # Monitor Polski
+# Źródło danych
+api_url: "https://api.sejm.gov.pl/eli"
+
+# Wydawcy do pobierania (DU = Dziennik Ustaw, MP = Monitor Polski)
+publishers:
+  - DU
+  - MP
 
 # Zakres lat
 year_range:
@@ -50,20 +60,24 @@ year_range:
 monitoring:
   enabled: true
   interval_hours: 24
+
+# Opcje pobierania
+download:
+  fetch_details: false  # true = dociągaj pełne szczegóły każdego aktu (wolniej)
 ```
 
 ## Użycie
 
-### 1. Pobranie wszystkich aktualnych aktów prawnych
+### 1. Pobranie wszystkich aktów prawnych
 
 ```bash
 python isap_scraper.py --mode scrape-all
 ```
 
 To polecenie:
-- Pobierze wszystkie akty prawne zgodnie z konfiguracją
-- Zapisze je w bazie danych `data/acts_database.json`
-- Może zająć kilka godzin przy pierwszym uruchomieniu
+- Pobierze metadane wszystkich aktów zgodnie z konfiguracją
+- Zapisze je w bazie `data/acts_database.json`
+- Trwa kilkanaście sekund (jedno zapytanie API na rocznik)
 
 ### 2. Sprawdzenie nowych aktów prawnych
 
@@ -71,15 +85,17 @@ To polecenie:
 python isap_scraper.py --mode check-new --days 7
 ```
 
-To sprawdzi akty z ostatnich 7 dni i znajdzie nowe akty, których nie ma jeszcze w bazie.
+Sprawdzi akty ogłoszone w ostatnich 7 dniach i znajdzie te, których nie ma jeszcze
+w bazie.
 
-### 3. Znalezienie zastąpionych aktów
+### 3. Znalezienie aktów, które utraciły moc
 
 ```bash
 python isap_scraper.py --mode find-replaced
 ```
 
-To sprawdzi, które akty zostały zastąpione, uchylone lub straciły moc obowiązującą.
+Sprawdzi (na podstawie pola `inForce` i statusu z API), które akty zostały
+uchylone lub wygasły, i zaktualizuje ich status w bazie.
 
 ### 4. Eksport do CSV
 
@@ -87,15 +103,13 @@ To sprawdzi, które akty zostały zastąpione, uchylone lub straciły moc obowi�
 python isap_scraper.py --mode export --output akty.csv
 ```
 
-Wyeksportuje wszystkie akty z bazy do pliku CSV.
-
 ### 5. Statystyki
 
 ```bash
 python isap_scraper.py --mode stats
 ```
 
-Wyświetli statystyki bazy aktów prawnych.
+Wyświetli statystyki bazy: podział według wydawcy, statusu i lat.
 
 ## Automatyczne monitorowanie
 
@@ -111,7 +125,7 @@ python monitor.py --mode once
 python monitor.py --mode continuous
 ```
 
-Monitor będzie działał w tle i sprawdzał nowe akty zgodnie z harmonogramem w konfiguracji (domyślnie co 24 godziny).
+Monitor sprawdza nowe akty zgodnie z harmonogramem w konfiguracji (domyślnie co 24h).
 
 ### Uruchomienie jako usługa systemowa (Linux)
 
@@ -125,8 +139,8 @@ After=network.target
 [Service]
 Type=simple
 User=twoj_user
-WorkingDirectory=/sciezka/do/isapscrap
-ExecStart=/usr/bin/python3 /sciezka/do/isapscrap/monitor.py --mode continuous
+WorkingDirectory=/sciezka/do/ISAP-scraper
+ExecStart=/usr/bin/python3 /sciezka/do/ISAP-scraper/monitor.py --mode continuous
 Restart=always
 RestartSec=60
 
@@ -144,49 +158,46 @@ sudo systemctl start isap-monitor
 
 ### Harmonogram cron (alternatywa)
 
-Dodaj do crontab (`crontab -e`):
-
 ```cron
 # Sprawdzaj nowe akty codziennie o 6:00
-0 6 * * * cd /sciezka/do/isapscrap && /usr/bin/python3 monitor.py --mode once
+0 6 * * * cd /sciezka/do/ISAP-scraper && /usr/bin/python3 monitor.py --mode once
 ```
 
 ## Struktura projektu
 
 ```
-isapscrap/
+ISAP-scraper/
 ├── config.yaml              # Konfiguracja
 ├── requirements.txt         # Zależności Python
-├── isap_scraper.py         # Główny scraper
-├── monitor.py              # Monitor automatyczny
-├── README.md               # Ta dokumentacja
-├── data/                   # Dane (tworzone automatycznie)
-│   ├── acts_database.json  # Baza aktów
-│   └── cache/              # Cache
-├── logs/                   # Logi (tworzone automatycznie)
-└── examples/               # Przykłady użycia
+├── isap_scraper.py          # Główny klient API
+├── monitor.py               # Monitor automatyczny
+├── README.md                # Ta dokumentacja
+├── data/                    # Dane (tworzone automatycznie)
+│   └── acts_database.json   # Baza aktów
+├── logs/                    # Logi (tworzone automatycznie)
+└── examples/                # Przykłady użycia
 ```
 
-## API Scrapera
+## API klienta
 
 ### Podstawowe użycie w kodzie Python
 
 ```python
 from isap_scraper import ISAPScraper
 
-# Utwórz scraper
+# Utwórz klienta
 scraper = ISAPScraper('config.yaml')
 
-# Pobierz akty z konkretnego roku
-acts_2025 = scraper.scrape_acts_by_year(2025, act_type='WDU')
+# Pobierz akty z konkretnego roku (publisher: DU lub MP)
+acts_2025 = scraper.scrape_acts_by_year(2025, publisher='DU')
 
 # Sprawdź nowe akty
 new_acts = scraper.check_for_new_acts(days_back=7)
 
-# Pobierz szczegóły aktu
-details = scraper.get_act_details('WDU20250001234')
+# Pobierz szczegóły aktu (po adresie publikacyjnym)
+details = scraper.get_act_details('WDU20240001984')
 
-# Znajdź zastąpione akty
+# Znajdź akty, które utraciły moc
 replaced = scraper.find_replaced_acts()
 
 # Eksportuj do CSV
@@ -204,74 +215,74 @@ Baza danych to plik JSON o strukturze:
 ```json
 {
   "acts": {
-    "WDU_2025_123456": {
-      "id": "123456",
-      "type": "WDU",
-      "year": 2025,
-      "title": "Ustawa o...",
-      "url": "https://isap.sejm.gov.pl/...",
-      "status": "active",
-      "publication_date": "2025-01-15",
-      "scraped_at": "2025-01-20T10:30:00",
-      "replaces": ["WDU20200012345"],
-      ...
+    "WDU20240001984": {
+      "address": "WDU20240001984",
+      "publisher": "DU",
+      "type": "Rozporządzenie",
+      "year": 2024,
+      "pos": 1984,
+      "title": "Rozporządzenie Rady Ministrów z dnia ...",
+      "displayAddress": "Dz.U. 2024 poz. 1984",
+      "ELI": "DU/2024/1984",
+      "status": "obowiązujący",
+      "inForce": "IN_FORCE",
+      "announcementDate": "2024-12-30",
+      "url": "https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU20240001984",
+      "scraped_at": "2026-01-20T10:30:00"
     }
   },
   "metadata": {
-    "last_update": "2025-01-20T10:30:00",
-    "total_acts": 15000
+    "last_update": "2026-01-20T10:30:00",
+    "total_acts": 23485
   }
 }
 ```
 
-## Typy aktów prawnych
+## Wydawcy
 
-- **WDU** - Dziennik Ustaw (główne akty prawne)
-- **WMP** - Monitor Polski (akty niższego rzędu)
-- **WDU_UE** - Dziennik Ustaw - prawo Unii Europejskiej
+- **DU** — Dziennik Ustaw (główne akty prawne)
+- **MP** — Monitor Polski (akty niższego rzędu)
+
+Pełną listę wydawców zwraca endpoint `GET /acts` (oraz metoda `get_publishers()`).
 
 ## Statusy aktów
 
-- `active` - Akt obowiązujący
-- `replaced` - Akt zastąpiony/uchylony
-- `unknown` - Status nieznany
+Status pochodzi wprost z API (pole `status`), np.:
+
+- `obowiązujący` — akt obowiązujący
+- `uchylony`, `uznany za uchylony`, `wygaśnięcie aktu` — akt nieobowiązujący
+- `akt posiada tekst jednolity`, `akt objęty tekstem jednolitym` — informacje o tekście jednolitym
+
+Dodatkowo pole `inForce` przyjmuje wartości `IN_FORCE` / `NOT_IN_FORCE` / `UNKNOWN`
+i jest najpewniejszym wskaźnikiem mocy obowiązującej.
 
 ## Rozwiązywanie problemów
 
-### Błąd "Access denied" lub "403"
+### Brak połączenia / błędy sieciowe
 
-Może to oznaczać, że ISAP blokuje zbyt częste zapytania. Rozwiązania:
+API bywa chwilowo niedostępne. Klient ponawia próby (`rate_limiting.retry_attempts`).
+W razie potrzeby zmniejsz tempo zapytań w `config.yaml`:
 
-1. Zwiększ opóźnienie między zapytaniami w `config.yaml`:
-   ```yaml
-   rate_limiting:
-     requests_per_second: 1  # zmniejsz z 2 na 1
-   ```
-
-2. Uruchom scraper w godzinach nocnych
-
-3. Użyj proxy lub VPN
-
-### Błąd parsowania HTML
-
-Struktura strony ISAP może się zmienić. W takim przypadku:
-
-1. Sprawdź logi w katalogu `logs/`
-2. Zaktualizuj metody parsowania w `isap_scraper.py`
-3. Zgłoś issue na GitHubie
+```yaml
+rate_limiting:
+  requests_per_second: 2
+```
 
 ### Brak nowych aktów mimo że powinny być
 
-1. Sprawdź czy konfiguracja zawiera odpowiednie typy aktów
-2. Sprawdź zakres lat w konfiguracji
-3. Uruchom z flagą debug: `python isap_scraper.py --mode check-new --days 30`
+1. Sprawdź, czy konfiguracja zawiera odpowiednich wydawców (`DU`, `MP`)
+2. Sprawdź zakres lat (`year_range`)
+3. Zwiększ okno wyszukiwania: `python isap_scraper.py --mode check-new --days 30`
+
+### Logi
+
+Wszystkie operacje są logowane do katalogu `logs/`.
 
 ## Przykłady zastosowań
 
 ### 1. Monitoring zmian w prawie dla kancelarii prawnej
 
 ```bash
-# Codzienne sprawdzanie nowych aktów
 python monitor.py --mode continuous
 ```
 
@@ -283,8 +294,6 @@ from isap_scraper import ISAPScraper
 scraper = ISAPScraper()
 scraper.scrape_all_acts()
 scraper.export_to_csv('baza_prawa.csv')
-
-# Import do bazy danych SQL, Elasticsearch, etc.
 ```
 
 ### 3. Alerting o zmianach w konkretnych dziedzinach
@@ -295,7 +304,6 @@ from isap_scraper import ISAPScraper
 scraper = ISAPScraper()
 new_acts = scraper.check_for_new_acts(days_back=1)
 
-# Filtruj akty zawierające konkretne słowa kluczowe
 keywords = ['podatkowy', 'VAT', 'podatek']
 relevant_acts = [
     act for act in new_acts
@@ -303,48 +311,40 @@ relevant_acts = [
 ]
 
 if relevant_acts:
-    # Wyślij powiadomienie
     print(f"Znaleziono {len(relevant_acts)} nowych aktów dotyczących podatków!")
 ```
 
 ## Wydajność
 
-- **Pierwsze pobranie** (20 lat danych): ~2-4 godziny
-- **Sprawdzenie nowych aktów**: ~2-5 minut
-- **Sprawdzenie zastąpionych**: ~10-30 minut (zależnie od liczby aktów)
+- **Pobranie metadanych całego rocznika**: jedno zapytanie API (ułamek sekundy)
+- **Pełny zakres 2020–2026 (DU + MP)**: ~20 tys. aktów w kilkanaście sekund
+- **Sprawdzenie nowych aktów**: kilka sekund
+- **`find-replaced`**: zależnie od liczby aktów (jedno zapytanie szczegółów na akt)
 
 ## Limitacje
 
-- Scraper działa na podstawie publicznej strony ISAP, nie oficjalnego API
-- Struktura HTML może się zmienić, co wymaga aktualizacji parsera
-- Rate limiting: domyślnie 2 zapytania na sekundę
-- Brak obsługi pełnego tekstu aktów (tylko metadane)
+- Domyślnie pobierane są metadane aktów; pełne szczegóły (referencje, organ wydający)
+  wymagają opcji `download.fetch_details: true` lub wywołania `get_act_details()`
+- Pełne teksty aktów (HTML/PDF) udostępnia API pod osobnymi endpointami
+  (`/acts/{address}/text.html`, `/acts/{address}/text.pdf`) — obecnie nieobsługiwane
 
 ## Planowane funkcjonalności
 
-- [ ] Pobieranie pełnych tekstów aktów (PDF)
-- [ ] Integracja z API Sejmu (gdy będzie dostępne)
-- [ ] Analiza zmian między wersjami aktów
+- [ ] Pobieranie pełnych tekstów aktów (HTML/PDF) przez API
+- [ ] Budowa grafu zależności między aktami (referencje)
 - [ ] Powiadomienia e-mail/Slack
 - [ ] Web UI do przeglądania bazy
 - [ ] Docker container
-- [ ] REST API
+
+## Dokumentacja API
+
+Pełna specyfikacja OpenAPI: https://api.sejm.gov.pl/eli.html
 
 ## Licencja
 
 MIT License
 
-## Autor
-
-Claude (Anthropic)
-
-## Wsparcie
-
-W razie problemów:
-1. Sprawdź dokumentację
-2. Przejrzyj logi w katalogu `logs/`
-3. Utwórz issue na GitHubie
-
 ## Disclaimer
 
-Ten scraper służy wyłącznie do celów edukacyjnych i badawczych. Przestrzegaj regulaminu korzystania z serwisu ISAP. Autor nie ponosi odpowiedzialności za nadużycia.
+Narzędzie korzysta z publicznego API Sejmu RP i służy celom edukacyjnym oraz
+badawczym. Przestrzegaj regulaminu korzystania z usług Sejmu RP.

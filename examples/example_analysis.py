@@ -32,23 +32,23 @@ def analyze_acts_by_year(scraper: ISAPScraper):
 
 def analyze_acts_by_type(scraper: ISAPScraper):
     """
-    Analiza liczby aktów według typu
+    Analiza liczby aktów według typu (Ustawa, Rozporządzenie, Obwieszczenie, ...)
     """
     print("\n=== Analiza aktów według typu ===\n")
 
     stats = scraper.get_statistics()
     types_data = stats['by_type']
 
-    print("Typ | Liczba aktów | Opis")
-    print("----|--------------|-----")
-    for act_type, count in sorted(types_data.items()):
-        desc = {
-            'WDU': 'Dziennik Ustaw',
-            'WMP': 'Monitor Polski',
-            'WDU_UE': 'Prawo UE'
-        }.get(act_type, 'Nieznany')
+    print(f"{'Typ aktu':40} | Liczba aktów")
+    print("-" * 40 + "-|-------------")
+    for act_type, count in sorted(types_data.items(), key=lambda x: -x[1]):
+        print(f"{str(act_type):40} | {count:>12}")
 
-        print(f"{act_type:3} | {count:>12} | {desc}")
+    # Podział według wydawcy (DU/MP)
+    print("\nWedług wydawcy:")
+    for pub, count in sorted(stats['by_publisher'].items()):
+        desc = {'DU': 'Dziennik Ustaw', 'MP': 'Monitor Polski'}.get(pub, 'Nieznany')
+        print(f"  {pub} ({desc}): {count}")
 
     return types_data
 
@@ -167,8 +167,8 @@ def export_detailed_report(scraper: ISAPScraper, output_file: str):
         for act in sorted_acts[:30]
     ]
 
-    # Znajdź zastąpione akty
-    replaced = [act for act in all_acts if act.get('status') == 'replaced']
+    # Znajdź akty, które utraciły moc
+    replaced = [act for act in all_acts if act.get('inForce') == 'NOT_IN_FORCE']
     report['replaced_acts'] = [
         {
             'id': act['id'],
@@ -180,8 +180,8 @@ def export_detailed_report(scraper: ISAPScraper, output_file: str):
         for act in replaced[:50]
     ]
 
-    # Próbka aktywnych aktów
-    active = [act for act in all_acts if act.get('status') == 'active']
+    # Próbka aktów obowiązujących
+    active = [act for act in all_acts if act.get('inForce') == 'IN_FORCE' or act.get('status') == 'obowiązujący']
     report['active_acts_sample'] = [
         {
             'id': act['id'],

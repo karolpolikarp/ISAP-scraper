@@ -85,10 +85,10 @@ def monitor_with_keywords(scraper: ISAPScraper, keywords: list):
     print(f"Znaleziono {len(relevant_acts)} aktów pasujących do kryteriów:\n")
 
     for act in relevant_acts:
-        print(f"📋 {act.get('type')}/{act.get('year')}")
+        print(f"📋 {act.get('displayAddress')} ({act.get('type')})")
         print(f"   Tytuł: {act.get('title', 'Brak tytułu')}")
         print(f"   URL: {act.get('url', 'Brak URL')}")
-        print(f"   Data: {act.get('publication_date', 'Nieznana')}")
+        print(f"   Data ogłoszenia: {act.get('announcementDate', 'Nieznana')}")
         print()
 
     return relevant_acts
@@ -187,8 +187,8 @@ def create_html_report(new_acts: list, replaced_acts: list, output_file: str):
             <div class="act">
                 <div class="act-title">{act.get('title', 'Brak tytułu')}</div>
                 <div class="act-meta">
-                    {act.get('type')}/{act.get('year')} |
-                    Data: {act.get('publication_date', 'Nieznana')}
+                    {act.get('displayAddress')} ({act.get('type')}) |
+                    Data ogłoszenia: {act.get('announcementDate', 'Nieznana')}
                 </div>
                 <div class="act-meta">
                     <a href="{act.get('url', '#')}">Więcej informacji</a>

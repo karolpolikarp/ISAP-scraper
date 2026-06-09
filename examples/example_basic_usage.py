@@ -16,13 +16,13 @@ def main():
     print("\n2. Statystyki bazy danych:")
     stats = scraper.get_statistics()
     print(f"   - Łącznie aktów: {stats['total_acts']}")
-    print(f"   - Aktywnych: {stats['by_status']['active']}")
-    print(f"   - Zastąpionych: {stats['by_status']['replaced']}")
+    print(f"   - Obowiązujących: {stats['by_status'].get('obowiązujący', 0)}")
+    print(f"   - Podział wg wydawcy: {stats['by_publisher']}")
     print(f"   - Ostatnia aktualizacja: {stats['last_update']}")
 
     # Pobierz akty z konkretnego roku
     print("\n3. Pobieranie aktów z roku 2025...")
-    acts_2025 = scraper.scrape_acts_by_year(2025, act_type='WDU')
+    acts_2025 = scraper.scrape_acts_by_year(2025, publisher='DU')
     print(f"   Znaleziono: {len(acts_2025)} aktów")
 
     # Wyświetl pierwsze 5 aktów
