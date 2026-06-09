@@ -1,19 +1,19 @@
-# Konfiguracja scrapera ISAP
+# Konfiguracja klienta API ELI (ISAP) Sejmu RP
 
-# Podstawowe ustawienia
-base_url: "https://isap.sejm.gov.pl"
-api_url: "https://api.sejm.gov.pl"
+# Źródła
+api_url: "https://api.sejm.gov.pl/eli"   # oficjalne API (źródło danych)
+base_url: "https://isap.sejm.gov.pl"      # tylko do budowania linków do strony ISAP
 
-# Typy aktów prawnych do monitorowania
-act_types:
-  - WDU  # Dziennik Ustaw
-  - WMP  # Monitor Polski
-  - WDU_UE  # Dziennik Ustaw - prawo UE
+# Wydawcy aktów prawnych do monitorowania
+# DU = Dziennik Ustaw, MP = Monitor Polski
+publishers:
+  - DU
+  - MP
 
-# Zakres lat do pobrania (null = wszystkie dostępne)
+# Zakres lat do pobrania (end: null = do bieżącego roku)
 year_range:
-  start: 2020  # Rok początkowy
-  end: null    # null = do bieżącego roku
+  start: 2020   # Rok początkowy
+  end: null     # null = do bieżącego roku
 
 # Katalogi
 data_dir: "data"
@@ -24,17 +24,17 @@ db_file: "data/acts_database.json"
 # Monitorowanie
 monitoring:
   enabled: true
-  interval_hours: 24  # Sprawdzaj co 24 godziny
-  notification_enabled: false  # E-mail notifications (wymaga konfiguracji SMTP)
+  interval_hours: 24            # Sprawdzaj co 24 godziny
+  notification_enabled: false   # Powiadomienia e-mail (wymaga konfiguracji SMTP)
 
 # Limity i opóźnienia
 rate_limiting:
-  requests_per_second: 2
+  requests_per_second: 5    # API jest wydajne; 5 zapytań/s jest bezpieczne
   retry_attempts: 3
-  retry_delay: 5  # sekundy
+  retry_delay: 5            # sekundy
 
 # Opcje pobierania
 download:
-  save_html: true
-  save_pdf: false  # Czy pobierać pliki PDF aktów
+  fetch_details: false   # true = dla każdego aktu dociągaj pełne szczegóły (wolniej, więcej zapytań)
+  save_pdf: false        # (zarezerwowane) pobieranie tekstów PDF aktów
   save_metadata: true
