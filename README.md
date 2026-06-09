@@ -342,9 +342,14 @@ Pełna specyfikacja OpenAPI: https://api.sejm.gov.pl/eli.html
 
 ## Licencja
 
-MIT License
+Kod źródłowy: **MIT License** — szczegóły w pliku [LICENSE](LICENSE).
+
+Licencja MIT obejmuje wyłącznie kod tego projektu. **Nie** dotyczy samych aktów
+prawnych ani ich metadanych — zgodnie z art. 4 ustawy o prawie autorskim i
+prawach pokrewnych akty normatywne nie są przedmiotem prawa autorskiego i należą
+do domeny publicznej.
 
 ## Disclaimer
 
-Narzędzie korzysta z publicznego API Sejmu RP i służy celom edukacyjnym oraz
-badawczym. Przestrzegaj regulaminu korzystania z usług Sejmu RP.
+Narzędzie korzysta z oficjalnego, publicznego API Sejmu RP i służy celom
+edukacyjnym oraz badawczym. Przestrzegaj regulaminu korzystania z tego API.
