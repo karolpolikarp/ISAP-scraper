@@ -339,6 +339,8 @@ html = c.get_act_article(act, 'dzial=II/rozdzial=1/art=100')
 > (`art=1`), ale w dużych ustawach są zagnieżdżone w działach/rozdziałach
 > (`dzial=II/rozdzial=1/art=100`). `get_article(act, numer)` sam odczytuje
 > strukturę z `/struct` i buduje właściwą ścieżkę, więc wystarczy podać numer.
+> Obsługiwany jest też **indeks górny** w naturalnym zapisie —
+> `get_article(act, '33¹')` (równoważne `'33(1)'` / `'33_1'`, np. art. 33¹ KP).
 
 `fetch_texts()` (tryb CLI `fetch-texts`) pomija akty bez tekstu w danym formacie
 na podstawie flag `textPDF`/`textHTML` — bez marnowania zapytań i bez pustych plików.

@@ -12,6 +12,7 @@ Wersja 2.0 — przepisana z kruchego scrapowania HTML strony isap.sejm.gov.pl
 import requests
 import json
 import os
+import re
 import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
@@ -417,19 +418,43 @@ class ISAPScraper:
         walk(nodes, [])
         return paths
 
+    # Indeks górny (np. art. 33¹) — API zapisuje go w strukturze jako '33_1'
+    _SUPERSCRIPTS = {'⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+                     '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9'}
+
+    @classmethod
+    def _article_number_candidates(cls, number) -> List[str]:
+        """
+        Warianty zapisu numeru artykułu z indeksem górnym. Pozwala podać artykuł
+        naturalnie ('33¹', '33(1)', '33 1') — w strukturze API jest to '33_1'.
+        """
+        s = str(number).strip()
+        cands = [s]
+        # indeks górny unicode -> _N  (np. '33¹' -> '33_1')
+        norm = re.sub('[⁰¹²³⁴⁵⁶⁷⁸⁹]+',
+                      lambda m: '_' + ''.join(cls._SUPERSCRIPTS[ch] for ch in m.group()),
+                      s)
+        # nawiasy/spacje wokół indeksu: '33(1)', '33[1]', '33 1' -> '33_1'
+        norm = re.sub(r'\s*[\(\[]\s*(\w+?)\s*[\)\]]', r'_\1', norm)
+        norm = re.sub(r'(\d)\s+(\w)$', r'\1_\2', norm)
+        for c in (norm, norm.replace(' ', '')):
+            if c not in cands:
+                cands.append(c)
+        return cands
+
     def get_article(self, act: Dict, number) -> Optional[str]:
         """
-        Pobierz pojedynczy artykuł po numerze (np. 100 albo '100') jako HTML.
+        Pobierz pojedynczy artykuł po numerze (np. 100, '13a', '33¹') jako HTML.
 
         Rozwiązuje ścieżkę przez strukturę aktu (/struct), więc działa także dla
         ustaw z działami i rozdziałami — w przeciwieństwie do get_act_article(),
-        która wymaga znajomości pełnej ścieżki. Zwraca None, gdy akt jest PDF-only
-        albo nie zawiera artykułu o danym numerze (np. tekst jednolity jako
-        obwieszczenie, gdzie artykuły są zagnieżdżone poza adresowaniem 'art=N').
+        która wymaga znajomości pełnej ścieżki. Akceptuje indeks górny w różnych
+        zapisach ('33¹', '33(1)', '33_1'). Zwraca None, gdy akt jest PDF-only
+        albo nie zawiera artykułu o danym numerze.
 
         Args:
             act: słownik aktu (publisher, year, pos)
-            number: numer artykułu (int lub str, np. '13a')
+            number: numer artykułu (int lub str, np. '13a', '33¹')
 
         Returns:
             HTML artykułu albo None
@@ -439,10 +464,11 @@ class ISAPScraper:
         struct = self.get_act_struct(act)
         if not struct:
             return None
-        path = self._build_article_paths(struct).get(str(number))
-        if not path:
-            return None
-        return self.get_act_article(act, path)
+        paths = self._build_article_paths(struct)
+        for key in self._article_number_candidates(number):
+            if key in paths:
+                return self.get_act_article(act, paths[key])
+        return None
 
     def fetch_texts(self, formats: List[str] = None, overwrite: bool = False,
                     limit: int = None) -> Dict[str, int]:
