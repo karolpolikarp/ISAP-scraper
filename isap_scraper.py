@@ -12,6 +12,7 @@ Wersja 2.0 — przepisana z kruchego scrapowania HTML strony isap.sejm.gov.pl
 import requests
 import json
 import os
+import re
 import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
@@ -382,19 +383,22 @@ class ISAPScraper:
             return None
         return self._get_json(f"/acts/{pub}/{year}/{pos}/struct")
 
-    # Mapowanie typów ze /struct na słownik ścieżek tree akceptowany przez API
+    # Mapowanie typów ze /struct na nazwy poziomów w ścieżce tree akceptowanej
+    # przez API. Typy spoza mapy (np. 'part' = Część) trafiają do ścieżki bez zmian.
     _STRUCT_TREE_MAP = {
         'book': 'ksiega', 'titl': 'tytul', 'bran': 'dzial', 'chpt': 'rozdzial',
         'schp': 'oddzial', 'art': 'art', 'arti': 'art', 'artykul': 'art',
         'pass': 'ustep', 'para': 'paragraf', 'pint': 'punkt', 'lett': 'litera',
-        'part': None,  # 'Treść ustawy/obwieszczenia' — pomijane w ścieżce
     }
 
     def _build_article_paths(self, struct) -> Dict[str, str]:
         """
         Zmapuj numer artykułu na ścieżkę tree, np.
-        '100' -> 'dzial=II/rozdzial=1/art=100'. Pozwala adresować artykuły
-        zagnieżdżone w działach/rozdziałach (duże ustawy), nie tylko płaskie.
+        '100' -> 'dzial=II/rozdzial=1/art=100', albo dla KC
+        '33_1' -> 'ksiega=PIERWSZA/part=OGÓLNA/tytul=II/dzial=II/art=33_1'.
+
+        Buduje pełną ścieżkę z hierarchii (księga/część/tytuł/dział/rozdział/...),
+        pomijając jedynie bezimienne węzły-wrappery (np. 'Treść ustawy').
         """
         paths: Dict[str, str] = {}
 
@@ -406,9 +410,11 @@ class ISAPScraper:
                     if num:
                         segs = []
                         for x in chain2:
-                            mapped = self._STRUCT_TREE_MAP.get(x.get('type'), x.get('type'))
-                            if mapped:
-                                segs.append(f"{mapped}={x.get('name')}")
+                            name = x.get('name')
+                            if not name:          # bezimienny wrapper — pomiń
+                                continue
+                            typ = self._STRUCT_TREE_MAP.get(x.get('type'), x.get('type'))
+                            segs.append(f"{typ}={name}")
                         paths[num] = '/'.join(segs)
                 if node.get('children'):
                     walk(node['children'], chain2)
@@ -417,19 +423,43 @@ class ISAPScraper:
         walk(nodes, [])
         return paths
 
+    # Indeks górny (np. art. 33¹) — API zapisuje go w strukturze jako '33_1'
+    _SUPERSCRIPTS = {'⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+                     '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9'}
+
+    @classmethod
+    def _article_number_candidates(cls, number) -> List[str]:
+        """
+        Warianty zapisu numeru artykułu z indeksem górnym. Pozwala podać artykuł
+        naturalnie ('33¹', '33(1)', '33 1') — w strukturze API jest to '33_1'.
+        """
+        s = str(number).strip()
+        cands = [s]
+        # indeks górny unicode -> _N  (np. '33¹' -> '33_1')
+        norm = re.sub('[⁰¹²³⁴⁵⁶⁷⁸⁹]+',
+                      lambda m: '_' + ''.join(cls._SUPERSCRIPTS[ch] for ch in m.group()),
+                      s)
+        # nawiasy/spacje wokół indeksu: '33(1)', '33[1]', '33 1' -> '33_1'
+        norm = re.sub(r'\s*[\(\[]\s*(\w+?)\s*[\)\]]', r'_\1', norm)
+        norm = re.sub(r'(\d)\s+(\w)$', r'\1_\2', norm)
+        for c in (norm, norm.replace(' ', '')):
+            if c not in cands:
+                cands.append(c)
+        return cands
+
     def get_article(self, act: Dict, number) -> Optional[str]:
         """
-        Pobierz pojedynczy artykuł po numerze (np. 100 albo '100') jako HTML.
+        Pobierz pojedynczy artykuł po numerze (np. 100, '13a', '33¹') jako HTML.
 
         Rozwiązuje ścieżkę przez strukturę aktu (/struct), więc działa także dla
         ustaw z działami i rozdziałami — w przeciwieństwie do get_act_article(),
-        która wymaga znajomości pełnej ścieżki. Zwraca None, gdy akt jest PDF-only
-        albo nie zawiera artykułu o danym numerze (np. tekst jednolity jako
-        obwieszczenie, gdzie artykuły są zagnieżdżone poza adresowaniem 'art=N').
+        która wymaga znajomości pełnej ścieżki. Akceptuje indeks górny w różnych
+        zapisach ('33¹', '33(1)', '33_1'). Zwraca None, gdy akt jest PDF-only
+        albo nie zawiera artykułu o danym numerze.
 
         Args:
             act: słownik aktu (publisher, year, pos)
-            number: numer artykułu (int lub str, np. '13a')
+            number: numer artykułu (int lub str, np. '13a', '33¹')
 
         Returns:
             HTML artykułu albo None
@@ -439,10 +469,11 @@ class ISAPScraper:
         struct = self.get_act_struct(act)
         if not struct:
             return None
-        path = self._build_article_paths(struct).get(str(number))
-        if not path:
-            return None
-        return self.get_act_article(act, path)
+        paths = self._build_article_paths(struct)
+        for key in self._article_number_candidates(number):
+            if key in paths:
+                return self.get_act_article(act, paths[key])
+        return None
 
     def fetch_texts(self, formats: List[str] = None, overwrite: bool = False,
                     limit: int = None) -> Dict[str, int]:

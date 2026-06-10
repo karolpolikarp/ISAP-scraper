@@ -336,9 +336,12 @@ html = c.get_act_article(act, 'dzial=II/rozdzial=1/art=100')
 ```
 
 > **Adresowanie artykułów:** w płaskich aktach artykuły są na poziomie głównym
-> (`art=1`), ale w dużych ustawach są zagnieżdżone w działach/rozdziałach
-> (`dzial=II/rozdzial=1/art=100`). `get_article(act, numer)` sam odczytuje
-> strukturę z `/struct` i buduje właściwą ścieżkę, więc wystarczy podać numer.
+> (`art=1`), ale w kodeksach są głęboko zagnieżdżone w księgach, częściach,
+> tytułach, działach i rozdziałach (np. art. 33¹ KC to
+> `ksiega=PIERWSZA/part=OGÓLNA/tytul=II/dzial=II/art=33_1`). `get_article(act,
+> numer)` sam odczytuje strukturę z `/struct` i buduje właściwą ścieżkę, więc
+> wystarczy podać numer. Obsługiwany jest też **indeks górny** w naturalnym
+> zapisie — `get_article(act, '33¹')` (równoważne `'33(1)'` / `'33_1'`).
 
 `fetch_texts()` (tryb CLI `fetch-texts`) pomija akty bez tekstu w danym formacie
 na podstawie flag `textPDF`/`textHTML` — bez marnowania zapytań i bez pustych plików.
