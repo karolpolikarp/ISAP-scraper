@@ -1,4 +1,4 @@
-# ISAP Scraper - Klient API Aktów Prawnych Sejmu RP
+# isap-api - Klient API Aktów Prawnych Sejmu RP
 
 Narzędzie do pobierania i monitorowania metadanych aktów prawnych z
 **oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Internetowego
@@ -71,7 +71,7 @@ download:
 ### 1. Pobranie wszystkich aktów prawnych
 
 ```bash
-python isap_scraper.py --mode scrape-all
+python isap_api.py --mode scrape-all
 ```
 
 To polecenie:
@@ -82,7 +82,7 @@ To polecenie:
 ### 2. Sprawdzenie nowych aktów prawnych
 
 ```bash
-python isap_scraper.py --mode check-new --days 7
+python isap_api.py --mode check-new --days 7
 ```
 
 Sprawdzi akty ogłoszone w ostatnich 7 dniach i znajdzie te, których nie ma jeszcze
@@ -91,7 +91,7 @@ w bazie.
 ### 3. Znalezienie aktów, które utraciły moc
 
 ```bash
-python isap_scraper.py --mode find-replaced
+python isap_api.py --mode find-replaced
 ```
 
 Sprawdzi (na podstawie pola `inForce` i statusu z API), które akty zostały
@@ -100,16 +100,30 @@ uchylone lub wygasły, i zaktualizuje ich status w bazie.
 ### 4. Eksport do CSV
 
 ```bash
-python isap_scraper.py --mode export --output akty.csv
+python isap_api.py --mode export --output akty.csv
 ```
 
 ### 5. Statystyki
 
 ```bash
-python isap_scraper.py --mode stats
+python isap_api.py --mode stats
 ```
 
 Wyświetli statystyki bazy: podział według wydawcy, statusu i lat.
+
+### 6. Pobranie pełnych tekstów aktów
+
+```bash
+# PDF (domyślnie z konfiguracji), tylko pierwsze 50 aktów z bazy
+python isap_api.py --mode fetch-texts --format pdf --limit 50
+
+# PDF i HTML
+python isap_api.py --mode fetch-texts --format both
+```
+
+Pobiera treść aktów z bazy i zapisuje do `data/texts/` (`{adres}.pdf` / `{adres}.html`).
+Akty już pobrane są pomijane (chyba że dodasz `--overwrite`). Szczegóły poniżej —
+patrz [Pełne teksty aktów](#pełne-teksty-aktów).
 
 ## Automatyczne monitorowanie
 
@@ -139,8 +153,8 @@ After=network.target
 [Service]
 Type=simple
 User=twoj_user
-WorkingDirectory=/sciezka/do/ISAP-scraper
-ExecStart=/usr/bin/python3 /sciezka/do/ISAP-scraper/monitor.py --mode continuous
+WorkingDirectory=/sciezka/do/isap-api
+ExecStart=/usr/bin/python3 /sciezka/do/isap-api/monitor.py --mode continuous
 Restart=always
 RestartSec=60
 
@@ -160,16 +174,16 @@ sudo systemctl start isap-monitor
 
 ```cron
 # Sprawdzaj nowe akty codziennie o 6:00
-0 6 * * * cd /sciezka/do/ISAP-scraper && /usr/bin/python3 monitor.py --mode once
+0 6 * * * cd /sciezka/do/isap-api && /usr/bin/python3 monitor.py --mode once
 ```
 
 ## Struktura projektu
 
 ```
-ISAP-scraper/
+isap-api/
 ├── config.yaml              # Konfiguracja
 ├── requirements.txt         # Zależności Python
-├── isap_scraper.py          # Główny klient API
+├── isap_api.py          # Główny klient API
 ├── monitor.py               # Monitor automatyczny
 ├── README.md                # Ta dokumentacja
 ├── data/                    # Dane (tworzone automatycznie)
@@ -183,10 +197,10 @@ ISAP-scraper/
 ### Podstawowe użycie w kodzie Python
 
 ```python
-from isap_scraper import ISAPScraper
+from isap_api import ISAPClient
 
 # Utwórz klienta
-scraper = ISAPScraper('config.yaml')
+scraper = ISAPClient('config.yaml')
 
 # Pobierz akty z konkretnego roku (publisher: DU lub MP)
 acts_2025 = scraper.scrape_acts_by_year(2025, publisher='DU')
@@ -256,6 +270,41 @@ Status pochodzi wprost z API (pole `status`), np.:
 Dodatkowo pole `inForce` przyjmuje wartości `IN_FORCE` / `NOT_IN_FORCE` / `UNKNOWN`
 i jest najpewniejszym wskaźnikiem mocy obowiązującej.
 
+## Pełne teksty aktów
+
+ELI API udostępnia treść aktów, ale w trzech „smakach" o różnej jakości
+strukturalnej. Warto rozumieć ich ograniczenia:
+
+| Forma | Endpoint | Dostępność | Uwagi |
+|-------|----------|------------|-------|
+| **PDF** | `/acts/{pub}/{rok}/{poz}/text.pdf` | niemal zawsze (`textPDF=true`) | render dokumentu — **nie** tekst per-artykuł |
+| **Pełny HTML** | `/acts/{pub}/{rok}/{poz}/text.html` | gdy `textHTML=true` | cały akt jako HTML |
+| **Fragment** | `.../text.html/{tree}` np. `art=1` | gdy artykuły są adresowalne na poziomie głównym | czysty pojedynczy artykuł, bez parsowania PDF |
+
+Czego ELI API **nie** ma: czystego, strukturalnego endpointu „daj artykuł N jako
+JSON" dla dowolnego aktu. Dwa istotne przypadki brzegowe:
+
+- **Najnowsze teksty jednolite kodeksów (KC, KP) bywają PDF-only** (`textHTML=false`)
+  — wtedy `text.html` zwraca pusty body, zostaje PDF.
+- **Teksty jednolite są publikowane jako Obwieszczenia** — ich drzewo na poziomie
+  głównym to treść obwieszczenia, a właściwy kodeks jest zagnieżdżony, więc bare
+  `art=N` nie trafia (trzeba pełnej ścieżki `tree` albo całego HTML).
+
+Klient obsługuje to wprost:
+
+```python
+from isap_api import ISAPClient
+c = ISAPClient()
+act = c.db['acts']['WDU20240001976']
+
+c.download_act_text(act, 'pdf')        # zapis data/texts/WDU20240001976.pdf
+c.download_act_text(act, 'html')       # tylko gdy textHTML=true; inaczej None
+html = c.get_act_article(act, 'art=1') # pojedynczy artykuł jako HTML (lub None)
+```
+
+`fetch_texts()` (tryb CLI `fetch-texts`) pomija akty bez tekstu w danym formacie
+na podstawie flag `textPDF`/`textHTML` — bez marnowania zapytań i bez pustych plików.
+
 ## Rozwiązywanie problemów
 
 ### Brak połączenia / błędy sieciowe
@@ -272,7 +321,7 @@ rate_limiting:
 
 1. Sprawdź, czy konfiguracja zawiera odpowiednich wydawców (`DU`, `MP`)
 2. Sprawdź zakres lat (`year_range`)
-3. Zwiększ okno wyszukiwania: `python isap_scraper.py --mode check-new --days 30`
+3. Zwiększ okno wyszukiwania: `python isap_api.py --mode check-new --days 30`
 
 ### Logi
 
@@ -289,9 +338,9 @@ python monitor.py --mode continuous
 ### 2. Budowa bazy wiedzy prawnej
 
 ```python
-from isap_scraper import ISAPScraper
+from isap_api import ISAPClient
 
-scraper = ISAPScraper()
+scraper = ISAPClient()
 scraper.scrape_all_acts()
 scraper.export_to_csv('baza_prawa.csv')
 ```
@@ -299,9 +348,9 @@ scraper.export_to_csv('baza_prawa.csv')
 ### 3. Alerting o zmianach w konkretnych dziedzinach
 
 ```python
-from isap_scraper import ISAPScraper
+from isap_api import ISAPClient
 
-scraper = ISAPScraper()
+scraper = ISAPClient()
 new_acts = scraper.check_for_new_acts(days_back=1)
 
 keywords = ['podatkowy', 'VAT', 'podatek']
@@ -325,12 +374,14 @@ if relevant_acts:
 
 - Domyślnie pobierane są metadane aktów; pełne szczegóły (referencje, organ wydający)
   wymagają opcji `download.fetch_details: true` lub wywołania `get_act_details()`
-- Pełne teksty aktów (HTML/PDF) udostępnia API pod osobnymi endpointami
-  (`/acts/{address}/text.html`, `/acts/{address}/text.pdf`) — obecnie nieobsługiwane
+- Pełne teksty: PDF to render dokumentu, a nie tekst strukturalny per-artykuł;
+  HTML i fragmenty `art=N` są dostępne tylko dla części aktów — patrz
+  [Pełne teksty aktów](#pełne-teksty-aktów)
 
 ## Planowane funkcjonalności
 
-- [ ] Pobieranie pełnych tekstów aktów (HTML/PDF) przez API
+- [x] Pobieranie pełnych tekstów aktów (PDF/HTML) przez API
+- [ ] Ekstrakcja tekstu z PDF (dla aktów PDF-only, np. teksty jednolite kodeksów)
 - [ ] Budowa grafu zależności między aktami (referencje)
 - [ ] Powiadomienia e-mail/Slack
 - [ ] Web UI do przeglądania bazy

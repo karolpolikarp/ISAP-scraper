@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ISAP Scraper - klient oficjalnego API ELI Sejmu RP (Akty Prawne)
+isap-api - klient oficjalnego API ELI Sejmu RP (Akty Prawne)
 
 Pobiera metadane aktów prawnych z publicznego API:
     https://api.sejm.gov.pl/eli
@@ -35,7 +35,7 @@ REPEALED_STATUSES = {
 }
 
 
-class ISAPScraper:
+class ISAPClient:
     """Klient API ELI dla systemu ISAP Sejmu RP"""
 
     def __init__(self, config_path: str = "config.yaml"):
@@ -69,7 +69,7 @@ class ISAPScraper:
         """Konfiguracja logowania"""
         log_file = os.path.join(
             self.config['logs_dir'],
-            f"isap_scraper_{datetime.now().strftime('%Y%m%d')}.log"
+            f"isap_api_{datetime.now().strftime('%Y%m%d')}.log"
         )
 
         logging.basicConfig(
@@ -85,9 +85,12 @@ class ISAPScraper:
     def _create_session(self) -> requests.Session:
         """Utwórz sesję HTTP z odpowiednimi nagłówkami"""
         session = requests.Session()
+        # UA przeglądarkowy — backend endpointów text.html/text.pdf bywa za WAF-em
+        # i odrzuca nietypowe klienty; JSON-owe metadane akceptują dowolny UA.
         session.headers.update({
-            'User-Agent': 'ISAP-Scraper/2.0 (+https://github.com/karolpolikarp/ISAP-scraper)',
-            'Accept': 'application/json',
+            'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                           'AppleWebKit/537.36 (KHTML, like Gecko) '
+                           'Chrome/124.0 Safari/537.36'),
             'Accept-Language': 'pl,en;q=0.7',
         })
         return session
@@ -130,16 +133,16 @@ class ISAPScraper:
         with open(db_file, 'w', encoding='utf-8') as f:
             json.dump(self.db, f, ensure_ascii=False, indent=2)
 
-    def _get_json(self, path: str, retries: int = None):
+    def _request(self, path: str, retries: int = None) -> Optional[requests.Response]:
         """
-        Wykonaj zapytanie GET do API i zwróć sparsowany JSON.
+        Wykonaj zapytanie GET do API z obsługą retry i rate limiting.
 
         Args:
             path: Ścieżka względem api_url (np. '/acts/DU/2024') lub pełny URL
             retries: Liczba prób (None = z konfiguracji)
 
         Returns:
-            Sparsowany JSON (dict/list) albo None w przypadku błędu / pustej odpowiedzi
+            Obiekt Response albo None (404 / błąd / wyczerpane próby)
         """
         if retries is None:
             retries = self.config['rate_limiting']['retry_attempts']
@@ -153,17 +156,14 @@ class ISAPScraper:
                 if rps:
                     time.sleep(1 / rps)
 
-                response = self.session.get(url, timeout=30)
+                response = self.session.get(url, timeout=60)
 
                 if response.status_code == 404:
                     return None
                 response.raise_for_status()
+                return response
 
-                if not response.text.strip():
-                    return None
-                return response.json()
-
-            except (requests.RequestException, json.JSONDecodeError) as e:
+            except requests.RequestException as e:
                 self.logger.warning(f"Próba {attempt + 1}/{retries} nieudana dla {url}: {e}")
                 if attempt < retries - 1:
                     time.sleep(self.config['rate_limiting']['retry_delay'])
@@ -172,6 +172,19 @@ class ISAPScraper:
                     return None
 
         return None
+
+    def _get_json(self, path: str, retries: int = None):
+        """
+        Wykonaj zapytanie GET i zwróć sparsowany JSON (albo None).
+        """
+        response = self._request(path, retries)
+        if response is None or not response.text.strip():
+            return None
+        try:
+            return response.json()
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Niepoprawny JSON z {path}: {e}")
+            return None
 
     def get_publishers(self) -> List[Dict]:
         """Pobierz listę dostępnych wydawców (Dziennik Ustaw, Monitor Polski, ...)"""
@@ -278,6 +291,124 @@ class ISAPScraper:
             details['replaces'] = replaces
 
         return details
+
+    # --- Pełne teksty aktów (PDF / HTML) ---
+    #
+    # Rzeczywistość ELI API (zweryfikowana na żywo):
+    #   * text.pdf  — dostępny niemal zawsze (render dokumentu, nie tekst per-artykuł)
+    #   * text.html — tylko gdy metadana textHTML == True
+    #   * text.html/{tree} (np. 'art=1') — czysty pojedynczy artykuł, ale działa
+    #     tylko dla aktów z artykułami adresowalnymi na poziomie głównym (zwykłe
+    #     ustawy). Dla tekstów jednolitych kodeksów (publikowanych jako
+    #     Obwieszczenie) bare 'art=N' nie trafia, a najnowsze teksty jednolite
+    #     bywają PDF-only (textHTML == False) — wtedy text.html zwraca pusty body.
+
+    def _texts_dir(self) -> str:
+        d = self.config.get('download', {}).get('texts_dir') \
+            or os.path.join(self.config['data_dir'], 'texts')
+        Path(d).mkdir(parents=True, exist_ok=True)
+        return d
+
+    def download_act_text(self, act: Dict, fmt: str = 'pdf', overwrite: bool = False) -> Optional[str]:
+        """
+        Pobierz pełny tekst aktu (pdf/html) i zapisz na dysk.
+
+        Args:
+            act: słownik aktu z bazy (wymaga pól publisher, year, pos, address)
+            fmt: 'pdf' albo 'html'
+            overwrite: nadpisać istniejący plik
+
+        Returns:
+            Ścieżka zapisanego pliku albo None (brak tekstu w danym formacie)
+        """
+        address = act.get('address')
+        pub, year, pos = act.get('publisher'), act.get('year'), act.get('pos')
+        if not (address and pub and year is not None and pos is not None):
+            return None
+
+        ext = 'pdf' if fmt == 'pdf' else 'html'
+        flag = 'textPDF' if fmt == 'pdf' else 'textHTML'
+        # Jeśli metadane jednoznacznie mówią, że tekstu nie ma — nie marnuj zapytania
+        if act.get(flag) is False:
+            return None
+
+        out_path = os.path.join(self._texts_dir(), f"{address}.{ext}")
+        if os.path.exists(out_path) and not overwrite:
+            return out_path
+
+        response = self._request(f"/acts/{pub}/{year}/{pos}/text.{ext}")
+        if response is None or not response.content or not response.content.strip():
+            # pusty body = tekst niedostępny w tym formacie (np. PDF-only dla html)
+            return None
+
+        if ext == 'html':
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(response.text)
+        else:
+            with open(out_path, 'wb') as f:
+                f.write(response.content)
+        return out_path
+
+    def get_act_article(self, act: Dict, tree: str) -> Optional[str]:
+        """
+        Pobierz pojedynczy fragment aktu jako HTML (np. tree='art=1').
+
+        Działa dla aktów z textHTML == True, których elementy są adresowalne
+        na poziomie głównym (zwykłe ustawy). Dla aktów PDF-only lub tekstów
+        jednolitych w formie obwieszczenia zwraca None.
+
+        Args:
+            act: słownik aktu (publisher, year, pos)
+            tree: ścieżka fragmentu wg API, np. 'art=415' albo
+                  'rozdzial=1/art=4/para=1/ustep=3'
+
+        Returns:
+            HTML fragmentu albo None
+        """
+        pub, year, pos = act.get('publisher'), act.get('year'), act.get('pos')
+        if not (pub and year is not None and pos is not None):
+            return None
+        if act.get('textHTML') is False:
+            return None
+        response = self._request(f"/acts/{pub}/{year}/{pos}/text.html/{tree}")
+        if response is None or not response.text.strip():
+            return None
+        return response.text
+
+    def fetch_texts(self, formats: List[str] = None, overwrite: bool = False,
+                    limit: int = None) -> Dict[str, int]:
+        """
+        Pobierz pełne teksty aktów z bazy (PDF i/lub HTML).
+
+        Args:
+            formats: lista formatów ('pdf', 'html'); None = z konfiguracji
+            overwrite: nadpisywać istniejące pliki
+            limit: maksymalna liczba aktów do przetworzenia (None = wszystkie)
+
+        Returns:
+            Słownik {format: liczba pobranych plików}
+        """
+        if formats is None:
+            formats = self.config.get('download', {}).get('text_formats', ['pdf'])
+
+        acts = list(self.db['acts'].values())
+        if limit:
+            acts = acts[:limit]
+
+        counts = {fmt: 0 for fmt in formats}
+        self.logger.info(f"Pobieram pełne teksty ({', '.join(formats)}) dla {len(acts)} aktów")
+
+        for act in tqdm(acts, desc="Pobieranie tekstów"):
+            for fmt in formats:
+                path = self.download_act_text(act, fmt, overwrite)
+                if path:
+                    act.setdefault('text_files', {})[fmt] = path
+                    counts[fmt] += 1
+            self.db['acts'][act['address']] = act
+
+        self._save_database()
+        self.logger.info(f"Pobrano teksty: {counts}")
+        return counts
 
     def scrape_all_acts(self) -> int:
         """
@@ -482,21 +613,28 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='ISAP Scraper - klient API ELI aktów prawnych Sejmu RP'
+        description='isap-api - klient API ELI aktów prawnych Sejmu RP'
     )
     parser.add_argument('--config', default='config.yaml',
                         help='Ścieżka do pliku konfiguracyjnego')
     parser.add_argument('--mode',
-                        choices=['scrape-all', 'check-new', 'find-replaced', 'export', 'stats'],
+                        choices=['scrape-all', 'check-new', 'find-replaced',
+                                 'fetch-texts', 'export', 'stats'],
                         default='scrape-all',
                         help='Tryb działania')
     parser.add_argument('--days', type=int, default=7,
                         help='Liczba dni wstecz (dla check-new)')
     parser.add_argument('--output', help='Plik wyjściowy (dla export)')
+    parser.add_argument('--format', choices=['pdf', 'html', 'both'],
+                        help='Format pełnych tekstów (dla fetch-texts)')
+    parser.add_argument('--limit', type=int,
+                        help='Maks. liczba aktów do przetworzenia (dla fetch-texts)')
+    parser.add_argument('--overwrite', action='store_true',
+                        help='Nadpisuj istniejące pliki tekstów')
 
     args = parser.parse_args()
 
-    scraper = ISAPScraper(args.config)
+    scraper = ISAPClient(args.config)
 
     if args.mode == 'scrape-all':
         scraper.scrape_all_acts()
@@ -513,6 +651,12 @@ def main():
         for act in replaced:
             print(f"  - {act.get('displayAddress')}: {act.get('title', 'Brak tytułu')}")
             print(f"    Status: {act.get('status_details', act.get('status', 'nieznany'))}")
+
+    elif args.mode == 'fetch-texts':
+        formats = {'both': ['pdf', 'html']}.get(args.format, [args.format]) if args.format else None
+        counts = scraper.fetch_texts(formats=formats, overwrite=args.overwrite, limit=args.limit)
+        print(f"\nPobrane pełne teksty: {counts}")
+        print(f"Zapisane w: {scraper._texts_dir()}")
 
     elif args.mode == 'export':
         output_file = scraper.export_to_csv(args.output)

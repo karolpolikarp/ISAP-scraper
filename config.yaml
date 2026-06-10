@@ -35,6 +35,8 @@ rate_limiting:
 
 # Opcje pobierania
 download:
-  fetch_details: false   # true = dla każdego aktu dociągaj pełne szczegóły (wolniej, więcej zapytań)
-  save_pdf: false        # (zarezerwowane) pobieranie tekstów PDF aktów
-  save_metadata: true
+  fetch_details: false       # true = dla każdego aktu dociągaj pełne szczegóły (wolniej, więcej zapytań)
+  texts_dir: "data/texts"    # katalog na pełne teksty aktów (tryb fetch-texts)
+  text_formats:              # które formaty pełnych tekstów pobierać
+    - pdf                    #   pdf  = uniwersalny (render dokumentu)
+    # - html                 #   html = tylko gdy akt ma textHTML=true

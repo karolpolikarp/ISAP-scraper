@@ -3,14 +3,14 @@
 Przykład analizy i raportowania danych z ISAP
 """
 
-from isap_scraper import ISAPScraper
+from isap_api import ISAPClient
 import pandas as pd
 import json
 from collections import Counter
 from datetime import datetime
 
 
-def analyze_acts_by_year(scraper: ISAPScraper):
+def analyze_acts_by_year(scraper: ISAPClient):
     """
     Analiza liczby aktów prawnych według lat
     """
@@ -30,7 +30,7 @@ def analyze_acts_by_year(scraper: ISAPScraper):
     return years_data
 
 
-def analyze_acts_by_type(scraper: ISAPScraper):
+def analyze_acts_by_type(scraper: ISAPClient):
     """
     Analiza liczby aktów według typu (Ustawa, Rozporządzenie, Obwieszczenie, ...)
     """
@@ -53,7 +53,7 @@ def analyze_acts_by_type(scraper: ISAPScraper):
     return types_data
 
 
-def analyze_replacement_chain(scraper: ISAPScraper, act_id: str):
+def analyze_replacement_chain(scraper: ISAPClient, act_id: str):
     """
     Analiza łańcucha zastąpień dla konkretnego aktu
     """
@@ -94,7 +94,7 @@ def analyze_replacement_chain(scraper: ISAPScraper, act_id: str):
             print(f"  - {replacing_act.get('title', 'Brak tytułu')}")
 
 
-def find_most_amended_acts(scraper: ISAPScraper, limit: int = 10):
+def find_most_amended_acts(scraper: ISAPClient, limit: int = 10):
     """
     Znajdź najczęściej zmieniane akty prawne
     """
@@ -127,7 +127,7 @@ def find_most_amended_acts(scraper: ISAPScraper, limit: int = 10):
         print()
 
 
-def export_detailed_report(scraper: ISAPScraper, output_file: str):
+def export_detailed_report(scraper: ISAPClient, output_file: str):
     """
     Eksportuj szczegółowy raport do JSON
     """
@@ -200,7 +200,7 @@ def export_detailed_report(scraper: ISAPScraper, output_file: str):
     print(f"Rozmiar raportu: {len(json.dumps(report)) / 1024:.2f} KB")
 
 
-def create_pandas_analysis(scraper: ISAPScraper):
+def create_pandas_analysis(scraper: ISAPClient):
     """
     Analiza z wykorzystaniem pandas
     """
@@ -242,10 +242,10 @@ def create_pandas_analysis(scraper: ISAPScraper):
 
 
 def main():
-    print("=== ISAP Scraper - Przykład analizy danych ===\n")
+    print("=== isap-api - Przykład analizy danych ===\n")
 
     # Utwórz scraper
-    scraper = ISAPScraper('../config.yaml')
+    scraper = ISAPClient('../config.yaml')
 
     # Wykonaj różne analizy
     analyze_acts_by_year(scraper)

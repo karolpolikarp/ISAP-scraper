@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Przykład podstawowego użycia ISAP Scrapera
+Przykład podstawowego użycia isap-api
 """
 
-from isap_scraper import ISAPScraper
+from isap_api import ISAPClient
 
 def main():
-    print("=== ISAP Scraper - Przykład podstawowego użycia ===\n")
+    print("=== isap-api - Przykład podstawowego użycia ===\n")
 
     # Utwórz scraper
     print("1. Inicjalizacja scrapera...")
-    scraper = ISAPScraper('../config.yaml')
+    scraper = ISAPClient('../config.yaml')
 
     # Pobierz statystyki
     print("\n2. Statystyki bazy danych:")
