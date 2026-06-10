@@ -383,19 +383,22 @@ class ISAPScraper:
             return None
         return self._get_json(f"/acts/{pub}/{year}/{pos}/struct")
 
-    # Mapowanie typów ze /struct na słownik ścieżek tree akceptowany przez API
+    # Mapowanie typów ze /struct na nazwy poziomów w ścieżce tree akceptowanej
+    # przez API. Typy spoza mapy (np. 'part' = Część) trafiają do ścieżki bez zmian.
     _STRUCT_TREE_MAP = {
         'book': 'ksiega', 'titl': 'tytul', 'bran': 'dzial', 'chpt': 'rozdzial',
         'schp': 'oddzial', 'art': 'art', 'arti': 'art', 'artykul': 'art',
         'pass': 'ustep', 'para': 'paragraf', 'pint': 'punkt', 'lett': 'litera',
-        'part': None,  # 'Treść ustawy/obwieszczenia' — pomijane w ścieżce
     }
 
     def _build_article_paths(self, struct) -> Dict[str, str]:
         """
         Zmapuj numer artykułu na ścieżkę tree, np.
-        '100' -> 'dzial=II/rozdzial=1/art=100'. Pozwala adresować artykuły
-        zagnieżdżone w działach/rozdziałach (duże ustawy), nie tylko płaskie.
+        '100' -> 'dzial=II/rozdzial=1/art=100', albo dla KC
+        '33_1' -> 'ksiega=PIERWSZA/part=OGÓLNA/tytul=II/dzial=II/art=33_1'.
+
+        Buduje pełną ścieżkę z hierarchii (księga/część/tytuł/dział/rozdział/...),
+        pomijając jedynie bezimienne węzły-wrappery (np. 'Treść ustawy').
         """
         paths: Dict[str, str] = {}
 
@@ -407,9 +410,11 @@ class ISAPScraper:
                     if num:
                         segs = []
                         for x in chain2:
-                            mapped = self._STRUCT_TREE_MAP.get(x.get('type'), x.get('type'))
-                            if mapped:
-                                segs.append(f"{mapped}={x.get('name')}")
+                            name = x.get('name')
+                            if not name:          # bezimienny wrapper — pomiń
+                                continue
+                            typ = self._STRUCT_TREE_MAP.get(x.get('type'), x.get('type'))
+                            segs.append(f"{typ}={name}")
                         paths[num] = '/'.join(segs)
                 if node.get('children'):
                     walk(node['children'], chain2)
