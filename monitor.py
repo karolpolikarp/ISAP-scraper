@@ -7,7 +7,7 @@ import schedule
 import time
 import logging
 from datetime import datetime
-from isap_api import ISAPClient
+from isap_scraper import ISAPScraper
 import json
 import os
 from typing import List, Dict
@@ -23,7 +23,7 @@ class ISAPMonitor:
         Args:
             config_path: Ścieżka do pliku konfiguracyjnego
         """
-        self.scraper = ISAPClient(config_path)
+        self.scraper = ISAPScraper(config_path)
         self.config = self.scraper.config
         self._setup_logging()
 

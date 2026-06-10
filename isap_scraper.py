@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-isap-api - klient oficjalnego API ELI Sejmu RP (Akty Prawne)
+ISAP Scraper - klient oficjalnego API ELI Sejmu RP (Akty Prawne)
 
 Pobiera metadane aktów prawnych z publicznego API:
     https://api.sejm.gov.pl/eli
@@ -35,7 +35,7 @@ REPEALED_STATUSES = {
 }
 
 
-class ISAPClient:
+class ISAPScraper:
     """Klient API ELI dla systemu ISAP Sejmu RP"""
 
     def __init__(self, config_path: str = "config.yaml"):
@@ -69,7 +69,7 @@ class ISAPClient:
         """Konfiguracja logowania"""
         log_file = os.path.join(
             self.config['logs_dir'],
-            f"isap_api_{datetime.now().strftime('%Y%m%d')}.log"
+            f"isap_scraper_{datetime.now().strftime('%Y%m%d')}.log"
         )
 
         logging.basicConfig(
@@ -613,7 +613,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='isap-api - klient API ELI aktów prawnych Sejmu RP'
+        description='ISAP Scraper - klient API ELI aktów prawnych Sejmu RP'
     )
     parser.add_argument('--config', default='config.yaml',
                         help='Ścieżka do pliku konfiguracyjnego')
@@ -634,7 +634,7 @@ def main():
 
     args = parser.parse_args()
 
-    scraper = ISAPClient(args.config)
+    scraper = ISAPScraper(args.config)
 
     if args.mode == 'scrape-all':
         scraper.scrape_all_acts()

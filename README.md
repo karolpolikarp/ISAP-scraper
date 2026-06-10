@@ -1,4 +1,4 @@
-# isap-api - Klient API Aktów Prawnych Sejmu RP
+# ISAP Scraper - Klient API Aktów Prawnych Sejmu RP
 
 Narzędzie do pobierania i monitorowania metadanych aktów prawnych z
 **oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Internetowego
@@ -71,7 +71,7 @@ download:
 ### 1. Pobranie wszystkich aktów prawnych
 
 ```bash
-python isap_api.py --mode scrape-all
+python isap_scraper.py --mode scrape-all
 ```
 
 To polecenie:
@@ -82,7 +82,7 @@ To polecenie:
 ### 2. Sprawdzenie nowych aktów prawnych
 
 ```bash
-python isap_api.py --mode check-new --days 7
+python isap_scraper.py --mode check-new --days 7
 ```
 
 Sprawdzi akty ogłoszone w ostatnich 7 dniach i znajdzie te, których nie ma jeszcze
@@ -91,7 +91,7 @@ w bazie.
 ### 3. Znalezienie aktów, które utraciły moc
 
 ```bash
-python isap_api.py --mode find-replaced
+python isap_scraper.py --mode find-replaced
 ```
 
 Sprawdzi (na podstawie pola `inForce` i statusu z API), które akty zostały
@@ -100,13 +100,13 @@ uchylone lub wygasły, i zaktualizuje ich status w bazie.
 ### 4. Eksport do CSV
 
 ```bash
-python isap_api.py --mode export --output akty.csv
+python isap_scraper.py --mode export --output akty.csv
 ```
 
 ### 5. Statystyki
 
 ```bash
-python isap_api.py --mode stats
+python isap_scraper.py --mode stats
 ```
 
 Wyświetli statystyki bazy: podział według wydawcy, statusu i lat.
@@ -115,10 +115,10 @@ Wyświetli statystyki bazy: podział według wydawcy, statusu i lat.
 
 ```bash
 # PDF (domyślnie z konfiguracji), tylko pierwsze 50 aktów z bazy
-python isap_api.py --mode fetch-texts --format pdf --limit 50
+python isap_scraper.py --mode fetch-texts --format pdf --limit 50
 
 # PDF i HTML
-python isap_api.py --mode fetch-texts --format both
+python isap_scraper.py --mode fetch-texts --format both
 ```
 
 Pobiera treść aktów z bazy i zapisuje do `data/texts/` (`{adres}.pdf` / `{adres}.html`).
@@ -153,8 +153,8 @@ After=network.target
 [Service]
 Type=simple
 User=twoj_user
-WorkingDirectory=/sciezka/do/isap-api
-ExecStart=/usr/bin/python3 /sciezka/do/isap-api/monitor.py --mode continuous
+WorkingDirectory=/sciezka/do/ISAP-scraper
+ExecStart=/usr/bin/python3 /sciezka/do/ISAP-scraper/monitor.py --mode continuous
 Restart=always
 RestartSec=60
 
@@ -174,16 +174,16 @@ sudo systemctl start isap-monitor
 
 ```cron
 # Sprawdzaj nowe akty codziennie o 6:00
-0 6 * * * cd /sciezka/do/isap-api && /usr/bin/python3 monitor.py --mode once
+0 6 * * * cd /sciezka/do/ISAP-scraper && /usr/bin/python3 monitor.py --mode once
 ```
 
 ## Struktura projektu
 
 ```
-isap-api/
+ISAP-scraper/
 ├── config.yaml              # Konfiguracja
 ├── requirements.txt         # Zależności Python
-├── isap_api.py          # Główny klient API
+├── isap_scraper.py          # Główny klient API
 ├── monitor.py               # Monitor automatyczny
 ├── README.md                # Ta dokumentacja
 ├── data/                    # Dane (tworzone automatycznie)
@@ -197,10 +197,10 @@ isap-api/
 ### Podstawowe użycie w kodzie Python
 
 ```python
-from isap_api import ISAPClient
+from isap_scraper import ISAPScraper
 
 # Utwórz klienta
-scraper = ISAPClient('config.yaml')
+scraper = ISAPScraper('config.yaml')
 
 # Pobierz akty z konkretnego roku (publisher: DU lub MP)
 acts_2025 = scraper.scrape_acts_by_year(2025, publisher='DU')
@@ -293,8 +293,8 @@ JSON" dla dowolnego aktu. Dwa istotne przypadki brzegowe:
 Klient obsługuje to wprost:
 
 ```python
-from isap_api import ISAPClient
-c = ISAPClient()
+from isap_scraper import ISAPScraper
+c = ISAPScraper()
 act = c.db['acts']['WDU20240001976']
 
 c.download_act_text(act, 'pdf')        # zapis data/texts/WDU20240001976.pdf
@@ -321,7 +321,7 @@ rate_limiting:
 
 1. Sprawdź, czy konfiguracja zawiera odpowiednich wydawców (`DU`, `MP`)
 2. Sprawdź zakres lat (`year_range`)
-3. Zwiększ okno wyszukiwania: `python isap_api.py --mode check-new --days 30`
+3. Zwiększ okno wyszukiwania: `python isap_scraper.py --mode check-new --days 30`
 
 ### Logi
 
@@ -338,9 +338,9 @@ python monitor.py --mode continuous
 ### 2. Budowa bazy wiedzy prawnej
 
 ```python
-from isap_api import ISAPClient
+from isap_scraper import ISAPScraper
 
-scraper = ISAPClient()
+scraper = ISAPScraper()
 scraper.scrape_all_acts()
 scraper.export_to_csv('baza_prawa.csv')
 ```
@@ -348,9 +348,9 @@ scraper.export_to_csv('baza_prawa.csv')
 ### 3. Alerting o zmianach w konkretnych dziedzinach
 
 ```python
-from isap_api import ISAPClient
+from isap_scraper import ISAPScraper
 
-scraper = ISAPClient()
+scraper = ISAPScraper()
 new_acts = scraper.check_for_new_acts(days_back=1)
 
 keywords = ['podatkowy', 'VAT', 'podatek']

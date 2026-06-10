@@ -3,7 +3,7 @@
 Przykład monitorowania aktów prawnych z powiadomieniami
 """
 
-from isap_api import ISAPClient
+from isap_scraper import ISAPScraper
 import json
 from datetime import datetime
 
@@ -62,7 +62,7 @@ def send_email_notification(recipients: list, subject: str, body: str):
         print(f"Błąd wysyłania e-maila: {e}")
 
 
-def monitor_with_keywords(scraper: ISAPClient, keywords: list):
+def monitor_with_keywords(scraper: ISAPScraper, keywords: list):
     """
     Monitoruj akty zawierające określone słowa kluczowe
     """
@@ -94,7 +94,7 @@ def monitor_with_keywords(scraper: ISAPClient, keywords: list):
     return relevant_acts
 
 
-def monitor_replaced_acts(scraper: ISAPClient):
+def monitor_replaced_acts(scraper: ISAPScraper):
     """
     Monitoruj akty, które zostały zastąpione
     """
@@ -228,10 +228,10 @@ def create_html_report(new_acts: list, replaced_acts: list, output_file: str):
 
 
 def main():
-    print("=== isap-api - Przykład zaawansowanego monitorowania ===\n")
+    print("=== ISAP Scraper - Przykład zaawansowanego monitorowania ===\n")
 
     # Utwórz scraper
-    scraper = ISAPClient('../config.yaml')
+    scraper = ISAPScraper('../config.yaml')
 
     # Monitoruj akty z konkretnymi słowami kluczowymi
     keywords = ['podatkowy', 'VAT', 'podatek', 'akcyza']

@@ -1,4 +1,4 @@
-# 🚀 Szybki Start - isap-api
+# 🚀 Szybki Start - ISAP Scraper
 
 Klient oficjalnego API ELI Sejmu RP (`https://api.sejm.gov.pl/eli`).
 
@@ -24,11 +24,11 @@ publishers:
   - MP  # Monitor Polski
 ```
 
-### 3. Uruchom narzędzie
+### 3. Uruchom scraper
 
 ```bash
 # Pobierz wszystkie akty prawne
-python isap_api.py --mode scrape-all
+python isap_scraper.py --mode scrape-all
 ```
 
 ## Najważniejsze komendy
@@ -36,7 +36,7 @@ python isap_api.py --mode scrape-all
 ### Pobranie wszystkich aktów
 
 ```bash
-python isap_api.py --mode scrape-all
+python isap_scraper.py --mode scrape-all
 ```
 
 ⏱️ Kilkanaście sekund (jedno zapytanie API na rocznik)
@@ -45,7 +45,7 @@ python isap_api.py --mode scrape-all
 ### Sprawdzenie nowych aktów
 
 ```bash
-python isap_api.py --mode check-new --days 7
+python isap_scraper.py --mode check-new --days 7
 ```
 
 ⏱️ Kilka sekund
@@ -54,7 +54,7 @@ python isap_api.py --mode check-new --days 7
 ### Znalezienie aktów, które utraciły moc
 
 ```bash
-python isap_api.py --mode find-replaced
+python isap_scraper.py --mode find-replaced
 ```
 
 ⚠️ Wykryje akty uchylone/wygasłe (na podstawie pola `inForce` z API)
@@ -62,7 +62,7 @@ python isap_api.py --mode find-replaced
 ### Pobranie pełnych tekstów aktów
 
 ```bash
-python isap_api.py --mode fetch-texts --format pdf --limit 50
+python isap_scraper.py --mode fetch-texts --format pdf --limit 50
 ```
 
 📄 Zapisuje treść aktów (PDF/HTML) do `data/texts/`. Akty PDF-only same pomijają
@@ -71,7 +71,7 @@ HTML. Szczegóły i ograniczenia: patrz README → „Pełne teksty aktów".
 ### Eksport do CSV
 
 ```bash
-python isap_api.py --mode export --output moje_akty.csv
+python isap_scraper.py --mode export --output moje_akty.csv
 ```
 
 📊 Eksportuje wszystkie akty do pliku CSV
@@ -79,7 +79,7 @@ python isap_api.py --mode export --output moje_akty.csv
 ### Statystyki
 
 ```bash
-python isap_api.py --mode stats
+python isap_scraper.py --mode stats
 ```
 
 📈 Pokaże podział według wydawcy, statusu i lat
@@ -103,16 +103,16 @@ python monitor.py --mode continuous
 ### Cron (sprawdzaj codziennie o 6:00)
 
 ```cron
-0 6 * * * cd /ścieżka/do/isap-api && python3 monitor.py --mode once
+0 6 * * * cd /ścieżka/do/ISAP-scraper && python3 monitor.py --mode once
 ```
 
 ## Użycie w kodzie Python
 
 ```python
-from isap_api import ISAPClient
+from isap_scraper import ISAPScraper
 
 # Utwórz klienta
-scraper = ISAPClient('config.yaml')
+scraper = ISAPScraper('config.yaml')
 
 # Sprawdź nowe akty
 new_acts = scraper.check_for_new_acts(days_back=7)
@@ -163,7 +163,7 @@ rate_limiting:
   requests_per_second: 2
 ```
 
-### Narzędzie nic nie znajduje
+### Scraper nic nie znajduje
 
 1. Sprawdź logi w `logs/`
 2. Upewnij się, że API jest dostępne (`https://api.sejm.gov.pl/eli/acts`)
