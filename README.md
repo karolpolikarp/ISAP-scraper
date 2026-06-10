@@ -1,8 +1,30 @@
-# ISAP Scraper - Klient API Aktów Prawnych Sejmu RP
+# ISAP Scraper
 
-Narzędzie do pobierania i monitorowania metadanych aktów prawnych z
-**oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Internetowego
-Systemu Aktów Prawnych (ISAP).
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Źródło](https://img.shields.io/badge/API-ELI%20Sejm%20RP-orange)
+
+Narzędzie do pobierania, monitorowania i archiwizacji aktów prawnych z
+**oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Dziennika
+Ustaw i Monitora Polskiego.
+
+> **Skąd „scraper", skoro to API?** Bo narzędzie hurtowo pobiera dane oraz pełne
+> teksty aktów (PDF/HTML) na dysk — w potocznym sensie to scraper. Robi to jednak
+> przez oficjalne, publiczne API JSON, a **nie** przez parsowanie strony
+> `isap.sejm.gov.pl` (chronionej przez WAF). Dzięki temu jest szybkie i stabilne —
+> pobranie metadanych całego rocznika to jedno zapytanie.
+
+## Spis treści
+
+- [Instalacja](#instalacja)
+- [Konfiguracja](#konfiguracja)
+- [Użycie](#użycie)
+- [Pełne teksty aktów](#pełne-teksty-aktów)
+- [Automatyczne monitorowanie](#automatyczne-monitorowanie)
+- [API klienta](#api-klienta)
+- [Struktura bazy danych](#struktura-bazy-danych)
+- [Rozwiązywanie problemów](#rozwiązywanie-problemów)
+- [Licencja](#licencja)
 
 ## Funkcjonalności
 
@@ -15,6 +37,11 @@ Systemu Aktów Prawnych (ISAP).
 - Wykrywanie nowych aktów (po dacie ogłoszenia)
 - Wykrywanie aktów, które utraciły moc obowiązującą (pole `inForce` z API)
 - Automatyczne powiadomienia (do konfiguracji)
+
+✅ **Pełne teksty aktów**
+- Pobieranie treści jako PDF i HTML (tryb `fetch-texts`)
+- Pojedynczy artykuł po numerze — `get_article(act, 100)`
+- Pomijanie aktów bez tekstu w danym formacie (flagi `textPDF`/`textHTML`)
 
 ✅ **Eksport danych**
 - Eksport do CSV
@@ -106,6 +133,20 @@ python isap_scraper.py --mode stats
 
 Wyświetli statystyki bazy: podział według wydawcy, statusu i lat.
 
+### 6. Pobranie pełnych tekstów aktów
+
+```bash
+# PDF (domyślnie z konfiguracji), tylko pierwsze 50 aktów z bazy
+python isap_scraper.py --mode fetch-texts --format pdf --limit 50
+
+# PDF i HTML
+python isap_scraper.py --mode fetch-texts --format both
+```
+
+Pobiera treść aktów z bazy i zapisuje do `data/texts/` (`{adres}.pdf` / `{adres}.html`).
+Akty już pobrane są pomijane (chyba że dodasz `--overwrite`). Szczegóły poniżej —
+patrz [Pełne teksty aktów](#pełne-teksty-aktów).
+
 ## Automatyczne monitorowanie
 
 ### Uruchomienie monitora jednorazowo
@@ -195,6 +236,11 @@ details = scraper.get_act_details('WDU20240001984')
 # Znajdź akty, które utraciły moc
 replaced = scraper.find_replaced_acts()
 
+# Pełne teksty (patrz sekcja „Pełne teksty aktów")
+act = scraper.db['acts']['WDU20240001221']
+scraper.download_act_text(act, 'pdf')   # zapis PDF do data/texts/
+scraper.get_article(act, 100)           # art. 100 jako HTML (lub None)
+
 # Eksportuj do CSV
 scraper.export_to_csv('output.csv')
 
@@ -250,6 +296,52 @@ Status pochodzi wprost z API (pole `status`), np.:
 
 Dodatkowo pole `inForce` przyjmuje wartości `IN_FORCE` / `NOT_IN_FORCE` / `UNKNOWN`
 i jest najpewniejszym wskaźnikiem mocy obowiązującej.
+
+## Pełne teksty aktów
+
+ELI API udostępnia treść aktów, ale w trzech „smakach" o różnej jakości
+strukturalnej. Warto rozumieć ich ograniczenia:
+
+| Forma | Endpoint | Dostępność | Uwagi |
+|-------|----------|------------|-------|
+| **PDF** | `/acts/{pub}/{rok}/{poz}/text.pdf` | niemal zawsze (`textPDF=true`) | render dokumentu — **nie** tekst per-artykuł |
+| **Pełny HTML** | `/acts/{pub}/{rok}/{poz}/text.html` | gdy `textHTML=true` | cały akt jako HTML |
+| **Fragment** | `.../text.html/{tree}` np. `art=1` | gdy `textHTML=true` | czysty pojedynczy artykuł, bez parsowania PDF; ścieżkę dla zagnieżdżonych artykułów rozwiązuje `get_article` |
+
+Czego ELI API **nie** ma: czystego, strukturalnego endpointu „daj artykuł N jako
+JSON" dla dowolnego aktu. Dwa istotne przypadki brzegowe:
+
+- **Najnowsze teksty jednolite kodeksów (KC, KP) bywają PDF-only** (`textHTML=false`)
+  — wtedy `text.html` zwraca pusty body, zostaje PDF.
+- **Teksty jednolite są publikowane jako Obwieszczenia** — ich drzewo na poziomie
+  głównym to treść obwieszczenia, a właściwy kodeks jest zagnieżdżony, więc bare
+  `art=N` nie trafia (trzeba pełnej ścieżki `tree` albo całego HTML).
+
+Klient obsługuje to wprost:
+
+```python
+from isap_scraper import ISAPScraper
+c = ISAPScraper()
+act = c.db['acts']['WDU20240001221']   # Prawo komunikacji elektronicznej
+
+c.download_act_text(act, 'pdf')        # zapis data/texts/WDU20240001221.pdf
+c.download_act_text(act, 'html')       # tylko gdy textHTML=true; inaczej None
+
+# Pojedynczy artykuł PO NUMERZE — ścieżka rozwiązywana przez strukturę aktu,
+# więc działa też dla ustaw z działami/rozdziałami:
+html = c.get_article(act, 100)         # art. 100 jako HTML (lub None)
+
+# Wariant niskopoziomowy — gdy znasz pełną ścieżkę tree:
+html = c.get_act_article(act, 'dzial=II/rozdzial=1/art=100')
+```
+
+> **Adresowanie artykułów:** w płaskich aktach artykuły są na poziomie głównym
+> (`art=1`), ale w dużych ustawach są zagnieżdżone w działach/rozdziałach
+> (`dzial=II/rozdzial=1/art=100`). `get_article(act, numer)` sam odczytuje
+> strukturę z `/struct` i buduje właściwą ścieżkę, więc wystarczy podać numer.
+
+`fetch_texts()` (tryb CLI `fetch-texts`) pomija akty bez tekstu w danym formacie
+na podstawie flag `textPDF`/`textHTML` — bez marnowania zapytań i bez pustych plików.
 
 ## Rozwiązywanie problemów
 
@@ -320,12 +412,14 @@ if relevant_acts:
 
 - Domyślnie pobierane są metadane aktów; pełne szczegóły (referencje, organ wydający)
   wymagają opcji `download.fetch_details: true` lub wywołania `get_act_details()`
-- Pełne teksty aktów (HTML/PDF) udostępnia API pod osobnymi endpointami
-  (`/acts/{address}/text.html`, `/acts/{address}/text.pdf`) — obecnie nieobsługiwane
+- Pełne teksty: PDF to render dokumentu, a nie tekst strukturalny per-artykuł;
+  HTML i fragmenty `art=N` są dostępne tylko dla części aktów — patrz
+  [Pełne teksty aktów](#pełne-teksty-aktów)
 
 ## Planowane funkcjonalności
 
-- [ ] Pobieranie pełnych tekstów aktów (HTML/PDF) przez API
+- [x] Pobieranie pełnych tekstów aktów (PDF/HTML) przez API
+- [ ] Ekstrakcja tekstu z PDF (dla aktów PDF-only, np. teksty jednolite kodeksów)
 - [ ] Budowa grafu zależności między aktami (referencje)
 - [ ] Powiadomienia e-mail/Slack
 - [ ] Web UI do przeglądania bazy

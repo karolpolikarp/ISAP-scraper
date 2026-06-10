@@ -59,6 +59,15 @@ python isap_scraper.py --mode find-replaced
 
 ⚠️ Wykryje akty uchylone/wygasłe (na podstawie pola `inForce` z API)
 
+### Pobranie pełnych tekstów aktów
+
+```bash
+python isap_scraper.py --mode fetch-texts --format pdf --limit 50
+```
+
+📄 Zapisuje treść aktów (PDF/HTML) do `data/texts/`. Akty PDF-only same pomijają
+HTML. Szczegóły i ograniczenia: patrz README → „Pełne teksty aktów".
+
 ### Eksport do CSV
 
 ```bash
