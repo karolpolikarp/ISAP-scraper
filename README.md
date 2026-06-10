@@ -8,12 +8,6 @@ Narzędzie do pobierania, monitorowania i archiwizacji aktów prawnych z
 **oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Dziennika
 Ustaw i Monitora Polskiego.
 
-> **Skąd „scraper", skoro to API?** Bo narzędzie hurtowo pobiera dane oraz pełne
-> teksty aktów (PDF/HTML) na dysk — w potocznym sensie to scraper. Robi to jednak
-> przez oficjalne, publiczne API JSON, a **nie** przez parsowanie strony
-> `isap.sejm.gov.pl` (chronionej przez WAF). Dzięki temu jest szybkie i stabilne —
-> pobranie metadanych całego rocznika to jedno zapytanie.
-
 ## Spis treści
 
 - [Instalacja](#instalacja)
@@ -418,15 +412,6 @@ if relevant_acts:
 - Pełne teksty: PDF to render dokumentu, a nie tekst strukturalny per-artykuł;
   HTML i fragmenty `art=N` są dostępne tylko dla części aktów — patrz
   [Pełne teksty aktów](#pełne-teksty-aktów)
-
-## Planowane funkcjonalności
-
-- [x] Pobieranie pełnych tekstów aktów (PDF/HTML) przez API
-- [ ] Ekstrakcja tekstu z PDF (dla aktów PDF-only, np. teksty jednolite kodeksów)
-- [ ] Budowa grafu zależności między aktami (referencje)
-- [ ] Powiadomienia e-mail/Slack
-- [ ] Web UI do przeglądania bazy
-- [ ] Docker container
 
 ## Dokumentacja API
 
