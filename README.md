@@ -295,12 +295,23 @@ Klient obsługuje to wprost:
 ```python
 from isap_scraper import ISAPScraper
 c = ISAPScraper()
-act = c.db['acts']['WDU20240001976']
+act = c.db['acts']['WDU20240001221']   # Prawo komunikacji elektronicznej
 
-c.download_act_text(act, 'pdf')        # zapis data/texts/WDU20240001976.pdf
+c.download_act_text(act, 'pdf')        # zapis data/texts/WDU20240001221.pdf
 c.download_act_text(act, 'html')       # tylko gdy textHTML=true; inaczej None
-html = c.get_act_article(act, 'art=1') # pojedynczy artykuł jako HTML (lub None)
+
+# Pojedynczy artykuł PO NUMERZE — ścieżka rozwiązywana przez strukturę aktu,
+# więc działa też dla ustaw z działami/rozdziałami:
+html = c.get_article(act, 100)         # art. 100 jako HTML (lub None)
+
+# Wariant niskopoziomowy — gdy znasz pełną ścieżkę tree:
+html = c.get_act_article(act, 'dzial=II/rozdzial=1/art=100')
 ```
+
+> **Adresowanie artykułów:** w płaskich aktach artykuły są na poziomie głównym
+> (`art=1`), ale w dużych ustawach są zagnieżdżone w działach/rozdziałach
+> (`dzial=II/rozdzial=1/art=100`). `get_article(act, numer)` sam odczytuje
+> strukturę z `/struct` i buduje właściwą ścieżkę, więc wystarczy podać numer.
 
 `fetch_texts()` (tryb CLI `fetch-texts`) pomija akty bez tekstu w danym formacie
 na podstawie flag `textPDF`/`textHTML` — bez marnowania zapytań i bez pustych plików.
