@@ -1,13 +1,30 @@
-# ISAP Scraper - Klient API Aktów Prawnych Sejmu RP
+# ISAP Scraper
 
-Narzędzie do pobierania i monitorowania metadanych aktów prawnych z
-**oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Internetowego
-Systemu Aktów Prawnych (ISAP).
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Źródło](https://img.shields.io/badge/API-ELI%20Sejm%20RP-orange)
 
-> **Uwaga o architekturze:** narzędzie korzysta z oficjalnego, publicznego API
-> JSON, a **nie** ze scrapowania strony `isap.sejm.gov.pl` (która jest chroniona
-> przez WAF i nie nadaje się do automatycznego parsowania HTML). Dzięki temu jest
-> szybkie i stabilne — pobranie metadanych całego rocznika to jedno zapytanie.
+Narzędzie do pobierania, monitorowania i archiwizacji aktów prawnych z
+**oficjalnego API ELI Sejmu RP** (`https://api.sejm.gov.pl/eli`) — Dziennika
+Ustaw i Monitora Polskiego.
+
+> **Skąd „scraper", skoro to API?** Bo narzędzie hurtowo pobiera dane oraz pełne
+> teksty aktów (PDF/HTML) na dysk — w potocznym sensie to scraper. Robi to jednak
+> przez oficjalne, publiczne API JSON, a **nie** przez parsowanie strony
+> `isap.sejm.gov.pl` (chronionej przez WAF). Dzięki temu jest szybkie i stabilne —
+> pobranie metadanych całego rocznika to jedno zapytanie.
+
+## Spis treści
+
+- [Instalacja](#instalacja)
+- [Konfiguracja](#konfiguracja)
+- [Użycie](#użycie)
+- [Pełne teksty aktów](#pełne-teksty-aktów)
+- [Automatyczne monitorowanie](#automatyczne-monitorowanie)
+- [API klienta](#api-klienta)
+- [Struktura bazy danych](#struktura-bazy-danych)
+- [Rozwiązywanie problemów](#rozwiązywanie-problemów)
+- [Licencja](#licencja)
 
 ## Funkcjonalności
 
@@ -20,6 +37,11 @@ Systemu Aktów Prawnych (ISAP).
 - Wykrywanie nowych aktów (po dacie ogłoszenia)
 - Wykrywanie aktów, które utraciły moc obowiązującą (pole `inForce` z API)
 - Automatyczne powiadomienia (do konfiguracji)
+
+✅ **Pełne teksty aktów**
+- Pobieranie treści jako PDF i HTML (tryb `fetch-texts`)
+- Pojedynczy artykuł po numerze — `get_article(act, 100)`
+- Pomijanie aktów bez tekstu w danym formacie (flagi `textPDF`/`textHTML`)
 
 ✅ **Eksport danych**
 - Eksport do CSV
@@ -214,6 +236,11 @@ details = scraper.get_act_details('WDU20240001984')
 # Znajdź akty, które utraciły moc
 replaced = scraper.find_replaced_acts()
 
+# Pełne teksty (patrz sekcja „Pełne teksty aktów")
+act = scraper.db['acts']['WDU20240001221']
+scraper.download_act_text(act, 'pdf')   # zapis PDF do data/texts/
+scraper.get_article(act, 100)           # art. 100 jako HTML (lub None)
+
 # Eksportuj do CSV
 scraper.export_to_csv('output.csv')
 
@@ -279,7 +306,7 @@ strukturalnej. Warto rozumieć ich ograniczenia:
 |-------|----------|------------|-------|
 | **PDF** | `/acts/{pub}/{rok}/{poz}/text.pdf` | niemal zawsze (`textPDF=true`) | render dokumentu — **nie** tekst per-artykuł |
 | **Pełny HTML** | `/acts/{pub}/{rok}/{poz}/text.html` | gdy `textHTML=true` | cały akt jako HTML |
-| **Fragment** | `.../text.html/{tree}` np. `art=1` | gdy artykuły są adresowalne na poziomie głównym | czysty pojedynczy artykuł, bez parsowania PDF |
+| **Fragment** | `.../text.html/{tree}` np. `art=1` | gdy `textHTML=true` | czysty pojedynczy artykuł, bez parsowania PDF; ścieżkę dla zagnieżdżonych artykułów rozwiązuje `get_article` |
 
 Czego ELI API **nie** ma: czystego, strukturalnego endpointu „daj artykuł N jako
 JSON" dla dowolnego aktu. Dwa istotne przypadki brzegowe:
