@@ -2,7 +2,7 @@
 
 Klient oficjalnego API ELI Sejmu RP (`https://api.sejm.gov.pl/eli`).
 
-## Instalacja w 3 krokach
+## Instalacja w 3 krokach 
 
 ### 1. Zainstaluj zależności
 
